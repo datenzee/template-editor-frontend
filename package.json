@@ -1,0 +1,40 @@
+{
+    "name": "datenzee-template-editor",
+    "version": "0.1.0",
+    "repository": "https://github.com/datenzee/template-editor-frontend",
+    "license": "Apache-2.0",
+    "scripts": {
+      "analyse": "elm-analyse",
+      "build": "./scripts/build.sh",
+      "clean": "rm -rf dist",
+      "docker:build": "docker build -t docker.ds-wizard.org/template-editor-frontend -f src/docker/Dockerfile .",
+      "docker:push": "docker push docker.ds-wizard.org/template-editor-frontend",
+      "start": "webpack serve",
+      "test": "npm run test:elm && npm run test:registry:icon-set && npm run test:registry:locale && npm run test:shared:icon-set && npm run test:shared:locale && npm run test:wizard:icon-set && npm run test:wizard:locale",
+      "test:elm": "elm-test && elm-analyse"
+    },
+    "devDependencies": {
+      "copy-webpack-plugin": "^10.2.4",
+      "css-loader": "^6.7.1",
+      "css-minimizer-webpack-plugin": "^3.4.1",
+      "elm": "^0.19.1-5",
+      "elm-analyse": "^0.16.5",
+      "elm-test": "^0.19.1-revision7",
+      "elm-webpack-loader": "^8.0.0",
+      "html-webpack-plugin": "^5.5.0",
+      "lodash": "^4.17.21",
+      "mini-css-extract-plugin": "^2.6.0",
+      "sass": "^1.51.0",
+      "sass-loader": "^12.6.0",
+      "terser-webpack-plugin": "^5.3.1",
+      "uglify-js": "^3.15.4",
+      "webpack": "^5.72.0",
+      "webpack-cli": "^4.9.2",
+      "webpack-dev-server": "^4.8.1"
+    },
+    "dependencies": {
+      "@fortawesome/fontawesome-free": "^5.15.4",
+      "bootstrap": "^4.6.0"
+    }
+  }
+  

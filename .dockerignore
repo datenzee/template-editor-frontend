@@ -1,0 +1,10 @@
+node_modules
+!node_modules/bootstrap
+!node_modules/@fortawesome
+elm-stuff
+scripts
+src
+!src/docker
+!src/scss
+tests
+vendor
