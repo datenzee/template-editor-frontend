@@ -6,3 +6,24 @@ $fa-font-path: '~@fortawesome/fontawesome-free/webfonts' !default;
 @import '~@fortawesome/fontawesome-free/scss/solid';
 @import '~@fortawesome/fontawesome-free/scss/regular';
 @import '~@fortawesome/fontawesome-free/scss/brands';
+
+
+.datenzee-gradient {
+  background: linear-gradient(139deg, #3da5dd 0%, #600983 100%);
+}
+
+.form-group-icon {
+  position: relative;
+
+  input {
+    padding-left: 2rem;
+  }
+
+  .input-icon {
+    position: absolute;
+    left: .75rem;
+    height: 100%;
+    display: flex;
+    align-items: center;
+  }
+}

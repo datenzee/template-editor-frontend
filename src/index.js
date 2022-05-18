@@ -1,8 +1,12 @@
 const program = require('./elm/TemplateEditor.elm')
 
 
-function getApiUrl() {
-    if (window.registry && window.registry['apiUrl']) return window.registry['apiUrl']
+function getDSWApiUrl() {
+    if (window.templateEditor && window.templateEditor['dswApiUrl']) return window.templateEditor['dswApiUrl']
+    return 'http://localhost:3000'
+}
+function getTEApiUrl() {
+    if (window.templateEditor && window.templateEditor['teApiUrl']) return window.templateEditor['teApiUrl']
     return 'http://localhost:3000'
 }
 
@@ -10,7 +14,8 @@ function getApiUrl() {
 function loadApp() {
     const app = program.Elm.TemplateEditor.init({
         flags: {
-            apiUrl: getApiUrl(),
+            dswApiUrl: getDSWApiUrl(),
+            teApiUrl: getTEApiUrl(),
             session: JSON.parse(localStorage.getItem('session')),
         }
     })
@@ -21,6 +26,11 @@ function loadApp() {
 
     app.ports?.clearSession?.subscribe(function () {
         localStorage.removeItem('session')
+    })
+
+    app.ports?.clearSessionAndReload?.subscribe(function () {
+        localStorage.removeItem('session')
+        location.reload()
     })
 }
 

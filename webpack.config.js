@@ -101,12 +101,12 @@ module.exports = {
         new MiniCssExtractPlugin({
             filename: '[name].[chunkhash].css'
         }),
-        // new CopyWebpackPlugin({
-        //     patterns: [
-        //         {from: 'src/img', to: 'img'},
-        //         {from: 'src/favicon.ico', to: 'favicon.ico'}
-        //     ]
-        // })
+        new CopyWebpackPlugin({
+            patterns: [
+                {from: 'src/assets', to: 'assets'},
+                // {from: 'src/favicon.ico', to: 'favicon.ico'}
+            ]
+        })
     ],
 
     devServer: {

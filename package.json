@@ -4,6 +4,7 @@
     "repository": "https://github.com/datenzee/template-editor-frontend",
     "license": "Apache-2.0",
     "scripts": {
+      "all": "npm run clean && npm run build && npm run docker:build && npm run docker:push",
       "analyse": "elm-analyse",
       "build": "./scripts/build.sh",
       "clean": "rm -rf dist",
