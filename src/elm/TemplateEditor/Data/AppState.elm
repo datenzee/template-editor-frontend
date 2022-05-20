@@ -53,7 +53,7 @@ toDSWServerInfo appState =
 
 toTEServerInfo : AppState -> ServerInfo
 toTEServerInfo appState =
-    { apiUrl = appState.teApiUrl
+    { apiUrl = appState.teApiUrl ++ "/api"
     , token = getToken appState
     }
 

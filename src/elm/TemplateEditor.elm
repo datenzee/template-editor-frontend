@@ -16,6 +16,8 @@ import TemplateEditor.Data.Token exposing (Token)
 import TemplateEditor.Data.User as User exposing (User)
 import TemplateEditor.Data.UserInfo exposing (UserInfo)
 import TemplateEditor.Layouts.DefaultLayout as DefaultLayout
+import TemplateEditor.Layouts.PublicLayout as PublicLayout
+import TemplateEditor.Pages.Dashboard as Dashboard
 import TemplateEditor.Pages.Login as Login
 import TemplateEditor.Ports as Ports
 import TemplateEditor.Routes as Routes
@@ -26,7 +28,8 @@ import Url exposing (Url)
 type alias Model =
     { appState : AppState
     , pages :
-        { login : Login.Model
+        { dashboard : Dashboard.Model
+        , login : Login.Model
         }
     }
 
@@ -62,7 +65,8 @@ init flags location key =
         model =
             { appState = appState
             , pages =
-                { login = Login.init
+                { dashboard = Dashboard.initialModel
+                , login = Login.initialModel
                 }
             }
 
@@ -116,10 +120,40 @@ setRoute route model =
 type Msg
     = OnUrlChange Url
     | OnUrlRequest UrlRequest
+    | DashboardPageMsg Dashboard.Msg
     | LoginPageMsg Login.Msg
     | AuthGotToken Token
     | AuthGetCurrentUserComplete (Result Http.Error User)
     | AuthLogout
+
+
+initPage : Model -> ( Model, Cmd Msg )
+initPage model =
+    let
+        pages =
+            model.pages
+    in
+    case model.appState.route of
+        Routes.Login ->
+            let
+                ( loginModel, loginCmd ) =
+                    Login.init
+            in
+            ( { model | pages = { pages | login = loginModel } }
+            , Cmd.map LoginPageMsg loginCmd
+            )
+
+        Routes.Dashboard ->
+            let
+                ( dashboardModel, dashboardCmd ) =
+                    Dashboard.init model.appState
+            in
+            ( { model | pages = { pages | dashboard = dashboardModel } }
+            , Cmd.map DashboardPageMsg dashboardCmd
+            )
+
+        _ ->
+            ( model, Cmd.none )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -130,13 +164,11 @@ update msg model =
                 newRoute =
                     Routing.parseLocation location
 
-                newModel =
-                    setRoute newRoute model
-
-                -- TODO
-                --|> initLocalModel
+                ( newModel, cmd ) =
+                    initPage <|
+                        setRoute newRoute model
             in
-            ( newModel, Cmd.none )
+            ( newModel, cmd )
 
         OnUrlRequest urlRequest ->
             case urlRequest of
@@ -167,6 +199,18 @@ update msg model =
             , loginPageCmd
             )
 
+        DashboardPageMsg dashboardMsg ->
+            let
+                pages =
+                    model.pages
+
+                ( dashboardModel, dashboardPageCmd ) =
+                    Dashboard.update dashboardMsg pages.dashboard
+            in
+            ( { model | pages = { pages | dashboard = dashboardModel } }
+            , Cmd.map DashboardPageMsg dashboardPageCmd
+            )
+
         AuthGotToken token ->
             let
                 newModel =
@@ -185,7 +229,7 @@ update msg model =
                     in
                     ( newModel
                     , Cmd.batch
-                        [ Ports.storeSession (Session.encode model.appState.session)
+                        [ Ports.storeSession (Session.encode newModel.appState.session)
                         , Routing.cmdNavigate newModel.appState Routes.Dashboard
                         ]
                     )
@@ -219,18 +263,22 @@ view : Model -> Document Msg
 view model =
     case model.appState.route of
         Routes.Dashboard ->
-            DefaultLayout.view model.appState Nothing <|
-                div []
-                    [ text "Dashboard"
-                    , a [ onLinkClick AuthLogout, class "link ml-2" ] [ text "Logout" ]
-                    ]
+            DefaultLayout.view model.appState
+                { title = Just "Dashboard"
+                , logoutMsg = AuthLogout
+                }
+                (Html.map DashboardPageMsg (Dashboard.view model.pages.dashboard))
 
         Routes.Login ->
-            documentMap LoginPageMsg <|
-                Login.view model.pages.login
+            PublicLayout.view (Just "Login")
+                (Html.map LoginPageMsg (Login.view model.pages.login))
 
         Routes.NotFound ->
-            DefaultLayout.view model.appState (Just "Not Found") <|
+            DefaultLayout.view model.appState
+                { title = Just "Not Found"
+                , logoutMsg = AuthLogout
+                }
+            <|
                 div [] [ text "Not Found" ]
 
 

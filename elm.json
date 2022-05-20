@@ -25,7 +25,7 @@
             "elm/bytes": "1.0.8",
             "elm/parser": "1.1.0",
             "elm/time": "1.0.0",
-            "elm/virtual-dom": "1.0.2",
+            "elm/virtual-dom": "1.0.3",
             "rtfeldman/elm-iso8601-date-strings": "1.1.4",
             "zwilias/elm-utf-tools": "2.0.1"
         }
