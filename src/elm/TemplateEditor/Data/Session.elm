@@ -4,7 +4,7 @@ import Json.Decode as D exposing (Decoder)
 import Json.Decode.Pipeline as D
 import Json.Encode as E
 import Json.Encode.Extra as E
-import TemplateEditor.Data.Token as Token exposing (Token)
+import TemplateEditor.Api.DSW.Data.Token as Token exposing (Token)
 import TemplateEditor.Data.UserInfo as UserInfo exposing (UserInfo)
 
 

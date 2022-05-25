@@ -1,12 +1,12 @@
 module TemplateEditor.Layouts.DefaultLayout exposing (view)
 
 import Browser exposing (Document)
-import Html exposing (Html, a, div, h1, hr, i, text)
+import Html exposing (Html, a, div, h1, hr, i, span, text)
 import Html.Attributes exposing (class)
 import Html.Events.Extra exposing (onLinkClick)
 import Html.Extra exposing (emptyNode)
+import TemplateEditor.Api.DSW.Data.User as User
 import TemplateEditor.Data.AppState exposing (AppState)
-import TemplateEditor.Data.User as User
 
 
 type alias ViewConfig msg =
@@ -31,7 +31,8 @@ view appState cfg content =
                 Just user ->
                     div []
                         [ text (User.fullName user)
-                        , a [ onLinkClick cfg.logoutMsg, class "text-white ml-2 pointer" ] [ text "Logout" ]
+                        , span [ class "mx-1" ] [ text " | " ]
+                        , a [ onLinkClick cfg.logoutMsg, class "text-white pointer" ] [ text "Logout" ]
                         ]
 
                 Nothing ->
@@ -39,7 +40,7 @@ view appState cfg content =
     in
     { title = title
     , body =
-        [ div [ class "jumbotron datenzee-gradient text-white m-3" ]
+        [ div [ class "d-flex justify-content-between align-items-center rounded-lg datenzee-gradient text-white m-3 px-3 py-2" ]
             [ h1 []
                 [ i [ class "fas fa-pen-fancy mr-3" ] []
                 , text "Template Editor"

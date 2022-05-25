@@ -1,4 +1,4 @@
-module TemplateEditor.Data.Pagination exposing
+module TemplateEditor.Api.TemplateEditor.Data.Pagination exposing
     ( Pagination
     , decoder
     )

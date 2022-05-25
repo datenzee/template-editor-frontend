@@ -11,10 +11,13 @@ import ActionResult exposing (ActionResult)
 import Html exposing (Html, div, h2, li, text, ul)
 import Html.Extra exposing (emptyNode)
 import Http
+import TemplateEditor.Api.TemplateEditor.Data.Pagination exposing (Pagination)
+import TemplateEditor.Api.TemplateEditor.Data.TemplateEditor exposing (TemplateEditor)
 import TemplateEditor.Api.TemplateEditor.TemplateEditors as TemplateEditors
+import TemplateEditor.Common.Setters exposing (setTemplateEditors)
+import TemplateEditor.Components.Link exposing (linkTo)
 import TemplateEditor.Data.AppState exposing (AppState)
-import TemplateEditor.Data.Pagination exposing (Pagination)
-import TemplateEditor.Data.TemplateEditor exposing (TemplateEditor)
+import TemplateEditor.Routes as Routes
 
 
 type alias Model =
@@ -41,12 +44,12 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         GetTemplateEditorsComplete result ->
-            case result of
-                Ok data ->
-                    ( { model | templateEditors = ActionResult.Success data }, Cmd.none )
-
-                Err error ->
-                    ( { model | templateEditors = ActionResult.Error "Unable to get template editors" }, Cmd.none )
+            ( ActionResult.apply setTemplateEditors
+                (always (ActionResult.Error "Unable to get template editors"))
+                result
+                model
+            , Cmd.none
+            )
 
 
 view : Model -> Html Msg
@@ -64,7 +67,9 @@ view model =
         ActionResult.Success pagination ->
             let
                 viewEditor editor =
-                    li [] [ text editor.name ]
+                    li []
+                        [ linkTo (Routes.TemplateEditor editor.id) [] [ text editor.name ]
+                        ]
             in
             div []
                 [ h2 [] [ text "Editors" ]

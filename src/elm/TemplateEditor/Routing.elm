@@ -4,7 +4,7 @@ import Browser.Navigation exposing (pushUrl)
 import TemplateEditor.Data.AppState exposing (AppState)
 import TemplateEditor.Routes as Routes
 import Url exposing (Url)
-import Url.Parser as Parser exposing (Parser, s, top)
+import Url.Parser as Parser exposing ((</>), Parser, int, s, top)
 
 
 matchers : Parser (Routes.Route -> a) a
@@ -12,6 +12,7 @@ matchers =
     Parser.oneOf
         [ Parser.map Routes.Login (s "login")
         , Parser.map Routes.Dashboard top
+        , Parser.map Routes.TemplateEditor (s "editor" </> int)
         ]
 
 
@@ -25,6 +26,9 @@ toUrl route =
 
                 Routes.Dashboard ->
                     []
+
+                Routes.TemplateEditor id ->
+                    [ "editor", String.fromInt id ]
 
                 _ ->
                     []

@@ -2,12 +2,14 @@ module TemplateEditor.Data.UserInfo exposing
     ( UserInfo
     , decoder
     , encode
+    , fromUser
     )
 
 import Json.Decode as D exposing (Decoder)
 import Json.Decode.Pipeline as D
 import Json.Encode as E
 import Json.Encode.Extra as E
+import TemplateEditor.Api.DSW.Data.User exposing (User)
 import Uuid exposing (Uuid)
 
 
@@ -45,3 +47,15 @@ encode userInfo =
         , ( "permissions", E.list E.string userInfo.permissions )
         , ( "imageUrl", E.maybe E.string userInfo.imageUrl )
         ]
+
+
+fromUser : User -> UserInfo
+fromUser user =
+    { uuid = user.uuid
+    , email = user.email
+    , firstName = user.firstName
+    , lastName = user.lastName
+    , role = user.role
+    , permissions = user.permissions
+    , imageUrl = user.imageUrl
+    }

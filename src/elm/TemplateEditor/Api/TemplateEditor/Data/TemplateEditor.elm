@@ -1,4 +1,4 @@
-module TemplateEditor.Data.TemplateEditor exposing
+module TemplateEditor.Api.TemplateEditor.Data.TemplateEditor exposing
     ( TemplateEditor
     , decoder
     , encode
@@ -10,12 +10,15 @@ import Json.Encode as E
 
 
 type alias TemplateEditor =
-    { name : String }
+    { id : Int
+    , name : String
+    }
 
 
 decoder : Decoder TemplateEditor
 decoder =
     D.succeed TemplateEditor
+        |> D.required "id" D.int
         |> D.required "name" D.string
 
 

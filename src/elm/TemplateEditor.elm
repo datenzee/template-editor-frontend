@@ -3,22 +3,22 @@ module TemplateEditor exposing (main)
 import ActionResult
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Navigation exposing (Key)
-import Html exposing (a, div, text)
-import Html.Attributes exposing (class)
-import Html.Events.Extra exposing (onLinkClick)
+import Html exposing (div, text)
 import Http
 import Json.Decode as D
 import Task.Extra as Task
+import TemplateEditor.Api.DSW.Data.Token exposing (Token)
+import TemplateEditor.Api.DSW.Data.User exposing (User)
 import TemplateEditor.Api.DSW.Users as Users
+import TemplateEditor.Common.Setters exposing (setDashboard, setLogin, setTemplateEditor)
 import TemplateEditor.Data.AppState as AppState exposing (AppState)
 import TemplateEditor.Data.Session as Session exposing (Session)
-import TemplateEditor.Data.Token exposing (Token)
-import TemplateEditor.Data.User as User exposing (User)
-import TemplateEditor.Data.UserInfo exposing (UserInfo)
+import TemplateEditor.Data.UserInfo as UserInfo exposing (UserInfo)
 import TemplateEditor.Layouts.DefaultLayout as DefaultLayout
 import TemplateEditor.Layouts.PublicLayout as PublicLayout
 import TemplateEditor.Pages.Dashboard as Dashboard
 import TemplateEditor.Pages.Login as Login
+import TemplateEditor.Pages.TemplateEditor as TemplateEditor
 import TemplateEditor.Ports as Ports
 import TemplateEditor.Routes as Routes
 import TemplateEditor.Routing as Routing
@@ -27,30 +27,24 @@ import Url exposing (Url)
 
 type alias Model =
     { appState : AppState
-    , pages :
-        { dashboard : Dashboard.Model
-        , login : Login.Model
-        }
+    , pages : PagesModel
     }
 
 
-setToken : Token -> Model -> Model
-setToken token model =
-    setSession (Session.setToken token model.appState.session) model
+type alias PagesModel =
+    { dashboard : Dashboard.Model
+    , login : Login.Model
+    , templateEditor : TemplateEditor.Model
+    }
 
 
-setUser : UserInfo -> Model -> Model
-setUser userInfo model =
-    setSession (Session.setUser userInfo model.appState.session) model
-
-
-setSession : Session -> Model -> Model
-setSession session model =
+updateSession : (a -> Session -> Session) -> a -> Model -> Model
+updateSession setValue value model =
     let
         appState =
             model.appState
     in
-    { model | appState = { appState | session = session } }
+    { model | appState = { appState | session = setValue value model.appState.session } }
 
 
 init : D.Value -> Url -> Key -> ( Model, Cmd Msg )
@@ -67,6 +61,7 @@ init flags location key =
             , pages =
                 { dashboard = Dashboard.initialModel
                 , login = Login.initialModel
+                , templateEditor = TemplateEditor.initialModel
                 }
             }
 
@@ -120,11 +115,12 @@ setRoute route model =
 type Msg
     = OnUrlChange Url
     | OnUrlRequest UrlRequest
-    | DashboardPageMsg Dashboard.Msg
-    | LoginPageMsg Login.Msg
     | AuthGotToken Token
     | AuthGetCurrentUserComplete (Result Http.Error User)
     | AuthLogout
+    | PageDashboardMsg Dashboard.Msg
+    | PageLoginMsg Login.Msg
+    | PageTemplateEditorMsg TemplateEditor.Msg
 
 
 initPage : Model -> ( Model, Cmd Msg )
@@ -134,22 +130,31 @@ initPage model =
             model.pages
     in
     case model.appState.route of
-        Routes.Login ->
-            let
-                ( loginModel, loginCmd ) =
-                    Login.init
-            in
-            ( { model | pages = { pages | login = loginModel } }
-            , Cmd.map LoginPageMsg loginCmd
-            )
-
         Routes.Dashboard ->
             let
                 ( dashboardModel, dashboardCmd ) =
                     Dashboard.init model.appState
             in
             ( { model | pages = { pages | dashboard = dashboardModel } }
-            , Cmd.map DashboardPageMsg dashboardCmd
+            , Cmd.map PageDashboardMsg dashboardCmd
+            )
+
+        Routes.Login ->
+            let
+                ( loginModel, loginCmd ) =
+                    Login.init
+            in
+            ( { model | pages = { pages | login = loginModel } }
+            , Cmd.map PageLoginMsg loginCmd
+            )
+
+        Routes.TemplateEditor id ->
+            let
+                ( templateEditorModel, templateEditorCmd ) =
+                    TemplateEditor.init model.appState id
+            in
+            ( { model | pages = { pages | templateEditor = templateEditorModel } }
+            , Cmd.map PageTemplateEditorMsg templateEditorCmd
             )
 
         _ ->
@@ -182,39 +187,10 @@ update msg model =
                     else
                         ( model, Navigation.load url )
 
-        LoginPageMsg loginMsg ->
-            let
-                pages =
-                    model.pages
-
-                updateConfig =
-                    { wrapMsg = LoginPageMsg
-                    , tokenCmd = Task.dispatch << AuthGotToken
-                    }
-
-                ( loginPageModel, loginPageCmd ) =
-                    Login.update updateConfig model.appState loginMsg pages.login
-            in
-            ( { model | pages = { pages | login = loginPageModel } }
-            , loginPageCmd
-            )
-
-        DashboardPageMsg dashboardMsg ->
-            let
-                pages =
-                    model.pages
-
-                ( dashboardModel, dashboardPageCmd ) =
-                    Dashboard.update dashboardMsg pages.dashboard
-            in
-            ( { model | pages = { pages | dashboard = dashboardModel } }
-            , Cmd.map DashboardPageMsg dashboardPageCmd
-            )
-
         AuthGotToken token ->
             let
                 newModel =
-                    setToken token model
+                    updateSession Session.setToken token model
             in
             ( newModel
             , Users.getCurrentUser newModel.appState AuthGetCurrentUserComplete
@@ -225,7 +201,7 @@ update msg model =
                 Ok user ->
                     let
                         newModel =
-                            setUser (User.toUserInfo user) model
+                            updateSession Session.setUser (UserInfo.fromUser user) model
                     in
                     ( newModel
                     , Cmd.batch
@@ -237,7 +213,7 @@ update msg model =
                 Err error ->
                     let
                         failedMsg =
-                            LoginPageMsg (Login.GetProfileInfoFailed (ActionResult.Error "Unable to get user profile"))
+                            PageLoginMsg (Login.GetProfileInfoFailed (ActionResult.Error "Unable to get user profile"))
                     in
                     ( model, Task.dispatch failedMsg )
 
@@ -253,6 +229,38 @@ update msg model =
                 ]
             )
 
+        PageDashboardMsg dashboardMsg ->
+            let
+                ( dashboardModel, dashboardPageCmd ) =
+                    Dashboard.update dashboardMsg model.pages.dashboard
+            in
+            ( { model | pages = setDashboard dashboardModel model.pages }
+            , Cmd.map PageDashboardMsg dashboardPageCmd
+            )
+
+        PageLoginMsg loginMsg ->
+            let
+                updateConfig =
+                    { wrapMsg = PageLoginMsg
+                    , tokenCmd = Task.dispatch << AuthGotToken
+                    }
+
+                ( loginPageModel, loginPageCmd ) =
+                    Login.update updateConfig model.appState loginMsg model.pages.login
+            in
+            ( { model | pages = setLogin loginPageModel model.pages }
+            , loginPageCmd
+            )
+
+        PageTemplateEditorMsg templateEditorMsg ->
+            let
+                ( templateEditorModel, templateEditorPageCmd ) =
+                    TemplateEditor.update templateEditorMsg model.pages.templateEditor
+            in
+            ( { model | pages = setTemplateEditor templateEditorModel model.pages }
+            , Cmd.map PageTemplateEditorMsg templateEditorPageCmd
+            )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
@@ -261,25 +269,35 @@ subscriptions _ =
 
 view : Model -> Document Msg
 view model =
+    let
+        defaultLayoutConfig title =
+            { title = Just title
+            , logoutMsg = AuthLogout
+            }
+    in
     case model.appState.route of
         Routes.Dashboard ->
             DefaultLayout.view model.appState
-                { title = Just "Dashboard"
-                , logoutMsg = AuthLogout
-                }
-                (Html.map DashboardPageMsg (Dashboard.view model.pages.dashboard))
+                (defaultLayoutConfig "Dashboard")
+                (Html.map PageDashboardMsg (Dashboard.view model.pages.dashboard))
+
+        Routes.TemplateEditor _ ->
+            let
+                title =
+                    ActionResult.unwrap "Loading..." .name model.pages.templateEditor.templateEditor
+            in
+            DefaultLayout.view model.appState
+                (defaultLayoutConfig title)
+                (Html.map PageTemplateEditorMsg (TemplateEditor.view model.pages.templateEditor))
 
         Routes.Login ->
             PublicLayout.view (Just "Login")
-                (Html.map LoginPageMsg (Login.view model.pages.login))
+                (Html.map PageLoginMsg (Login.view model.pages.login))
 
         Routes.NotFound ->
             DefaultLayout.view model.appState
-                { title = Just "Not Found"
-                , logoutMsg = AuthLogout
-                }
-            <|
-                div [] [ text "Not Found" ]
+                (defaultLayoutConfig "Not Found")
+                (div [] [ text "Not Found" ])
 
 
 main : Program D.Value Model Msg

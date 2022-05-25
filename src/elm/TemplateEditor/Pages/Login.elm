@@ -15,9 +15,9 @@ import Html.Attributes exposing (alt, class, id, placeholder, src, style, type_)
 import Html.Events exposing (onInput, onSubmit)
 import Html.Extra exposing (emptyNode)
 import Http
+import TemplateEditor.Api.DSW.Data.Token exposing (Token)
 import TemplateEditor.Api.DSW.Tokens as Tokens
 import TemplateEditor.Data.AppState exposing (AppState)
-import TemplateEditor.Data.Token exposing (Token)
 import TemplateEditor.Layouts.PublicLayout as PublicLayout
 
 

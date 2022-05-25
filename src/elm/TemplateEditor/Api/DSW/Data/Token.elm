@@ -1,4 +1,9 @@
-module TemplateEditor.Data.Token exposing (Token, decoder, empty, encode)
+module TemplateEditor.Api.DSW.Data.Token exposing
+    ( Token
+    , decoder
+    , empty
+    , encode
+    )
 
 import Json.Decode as D exposing (Decoder)
 import Json.Decode.Pipeline as D
