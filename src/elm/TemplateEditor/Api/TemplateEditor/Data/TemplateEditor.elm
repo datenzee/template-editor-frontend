@@ -24,4 +24,7 @@ decoder =
 
 encode : TemplateEditor -> E.Value
 encode templateEditor =
-    E.object []
+    E.object
+        [ ( "id", E.int templateEditor.id )
+        , ( "name", E.string templateEditor.name )
+        ]

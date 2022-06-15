@@ -61,7 +61,7 @@ init flags location key =
             , pages =
                 { dashboard = Dashboard.initialModel
                 , login = Login.initialModel
-                , templateEditor = TemplateEditor.initialModel
+                , templateEditor = TemplateEditor.initialModel 0
                 }
             }
 
@@ -255,7 +255,7 @@ update msg model =
         PageTemplateEditorMsg templateEditorMsg ->
             let
                 ( templateEditorModel, templateEditorPageCmd ) =
-                    TemplateEditor.update templateEditorMsg model.pages.templateEditor
+                    TemplateEditor.update model.appState templateEditorMsg model.pages.templateEditor
             in
             ( { model | pages = setTemplateEditor templateEditorModel model.pages }
             , Cmd.map PageTemplateEditorMsg templateEditorPageCmd
