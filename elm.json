@@ -19,9 +19,11 @@
             "elm/url": "1.0.0",
             "elm-community/json-extra": "4.3.0",
             "elm-community/maybe-extra": "5.3.0",
+            "rundis/elm-bootstrap": "5.2.0",
             "truqu/elm-md5": "1.1.0"
         },
         "indirect": {
+            "avh4/elm-color": "1.0.0",
             "elm/bytes": "1.0.8",
             "elm/parser": "1.1.0",
             "elm/time": "1.0.0",

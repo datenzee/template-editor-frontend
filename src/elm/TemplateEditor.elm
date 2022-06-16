@@ -254,17 +254,28 @@ update msg model =
 
         PageTemplateEditorMsg templateEditorMsg ->
             let
-                ( templateEditorModel, templateEditorPageCmd ) =
+                appState =
+                    model.appState
+
+                ( seed, templateEditorModel, templateEditorPageCmd ) =
                     TemplateEditor.update model.appState templateEditorMsg model.pages.templateEditor
             in
-            ( { model | pages = setTemplateEditor templateEditorModel model.pages }
+            ( { model
+                | pages = setTemplateEditor templateEditorModel model.pages
+                , appState = { appState | seed = seed }
+              }
             , Cmd.map PageTemplateEditorMsg templateEditorPageCmd
             )
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.none
+subscriptions model =
+    case model.appState.route of
+        Routes.TemplateEditor _ ->
+            Sub.map PageTemplateEditorMsg <| TemplateEditor.subscriptions model.pages.templateEditor
+
+        _ ->
+            Sub.none
 
 
 view : Model -> Document Msg

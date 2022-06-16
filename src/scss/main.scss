@@ -32,3 +32,27 @@ h1 {
   font-size: 1.5rem;
   margin-bottom: 0;
 }
+
+
+.app-canvas {
+  max-width: 80rem;
+
+  a {
+    cursor: pointer;
+  }
+
+  hr {
+    margin-left: -$card-spacer-x;
+    margin-right: -$card-spacer-x;
+  }
+
+  .card:not(:last-child) {
+    margin-bottom: $card-spacer-y;
+  }
+
+  .card {
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+  }
+}

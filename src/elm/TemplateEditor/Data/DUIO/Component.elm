@@ -7,11 +7,13 @@ module TemplateEditor.Data.DUIO.Component exposing
     , TitleComponent
     , decoder
     , encode
+    , getUuid
     )
 
 import Json.Decode as D exposing (Decoder)
 import Json.Decode.Pipeline as D
 import Json.Encode as E
+import Uuid exposing (Uuid)
 
 
 
@@ -66,17 +68,41 @@ encode component =
             titleComponentEncode titleComponent
 
 
+getUuid : Component -> Uuid
+getUuid component =
+    case component of
+        ContainerComponent container ->
+            container.uuid
+
+        IterativeContainerComponent iterativeContainer ->
+            iterativeContainer.uuid
+
+        PlainTextComponentComponent plainTextComponent ->
+            case plainTextComponent of
+                HeadingComponent headingComponent ->
+                    headingComponent.uuid
+
+                ParagraphComponent paragraphComponent ->
+                    paragraphComponent.uuid
+
+        TitleComponentComponent titleComponent ->
+            titleComponent.uuid
+
+
 
 -- Container
 
 
 type alias Container =
-    { contains : List Component }
+    { uuid : Uuid
+    , contains : List Component
+    }
 
 
 containerDecoder : Decoder Container
 containerDecoder =
     D.succeed Container
+        |> D.required "uuid" Uuid.decoder
         |> D.required "contains" (D.list decoder)
 
 
@@ -84,6 +110,7 @@ containerEncode : Container -> E.Value
 containerEncode container =
     E.object
         [ ( "type", E.string "Container" )
+        , ( "uuid", Uuid.encode container.uuid )
         , ( "contains", E.list encode container.contains )
         ]
 
@@ -93,7 +120,8 @@ containerEncode container =
 
 
 type alias IterativeContainer =
-    { predicate : String
+    { uuid : Uuid
+    , predicate : String
     , content : Container
     }
 
@@ -101,6 +129,7 @@ type alias IterativeContainer =
 iterativeContainerDecoder : Decoder IterativeContainer
 iterativeContainerDecoder =
     D.succeed IterativeContainer
+        |> D.required "uuid" Uuid.decoder
         |> D.required "predicate" D.string
         |> D.required "content" containerDecoder
 
@@ -109,6 +138,7 @@ iterativeContainerEncode : IterativeContainer -> E.Value
 iterativeContainerEncode container =
     E.object
         [ ( "type", E.string "IterativeContainer" )
+        , ( "uuid", Uuid.encode container.uuid )
         , ( "predicate", E.string container.predicate )
         , ( "content", containerEncode container.content )
         ]
@@ -124,7 +154,9 @@ type PlainTextComponent
 
 
 type alias PlainTextComponentData =
-    { content : String }
+    { uuid : Uuid
+    , content : String
+    }
 
 
 plainTextComponentDecoder : Decoder PlainTextComponent
@@ -149,6 +181,7 @@ plainTextComponentDecoderByType componentType =
 plainTextComponentDataDecoder : Decoder PlainTextComponentData
 plainTextComponentDataDecoder =
     D.succeed PlainTextComponentData
+        |> D.required "uuid" Uuid.decoder
         |> D.required "content" D.string
 
 
@@ -158,6 +191,7 @@ plainTextComponentEncode component =
         encodeComponent plainTextType data =
             E.object
                 [ ( "type", E.string "PlainTextComponent" )
+                , ( "uuid", Uuid.encode data.uuid )
                 , ( "plainTextType", E.string plainTextType )
                 , ( "content", E.string data.content )
                 ]
@@ -175,12 +209,15 @@ plainTextComponentEncode component =
 
 
 type alias TitleComponent =
-    { predicate : String }
+    { uuid : Uuid
+    , predicate : String
+    }
 
 
 titleComponentDecoder : Decoder TitleComponent
 titleComponentDecoder =
     D.succeed TitleComponent
+        |> D.required "uuid" Uuid.decoder
         |> D.required "predicate" D.string
 
 
@@ -188,5 +225,6 @@ titleComponentEncode : TitleComponent -> E.Value
 titleComponentEncode component =
     E.object
         [ ( "type", E.string "TitleComponent" )
+        , ( "uuid", Uuid.encode component.uuid )
         , ( "predicate", E.string component.predicate )
         ]

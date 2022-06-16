@@ -1,4 +1,16 @@
-module TemplateEditor.Common.Setters exposing (setDashboard, setLogin, setTemplateEditor, setTemplateEditors)
+module TemplateEditor.Common.Setters exposing
+    ( setContent
+    , setDashboard
+    , setLogin
+    , setPredicate
+    , setTemplateEditor
+    , setTemplateEditors
+    )
+
+
+setContent : v -> { a | content : v } -> { a | content : v }
+setContent value data =
+    { data | content = value }
 
 
 setDashboard : v -> { a | dashboard : v } -> { a | dashboard : v }
@@ -9,6 +21,11 @@ setDashboard value data =
 setLogin : v -> { a | login : v } -> { a | login : v }
 setLogin value data =
     { data | login = value }
+
+
+setPredicate : v -> { a | predicate : v } -> { a | predicate : v }
+setPredicate value data =
+    { data | predicate = value }
 
 
 setTemplateEditor : v -> { a | templateEditor : v } -> { a | templateEditor : v }

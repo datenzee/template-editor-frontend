@@ -2,6 +2,7 @@ module TemplateEditor.Data.AppState exposing (AppState, init, toDSWServerInfo, t
 
 import Browser.Navigation as Navigation
 import Json.Decode as D
+import Random exposing (Seed)
 import TemplateEditor.Api.Api exposing (ServerInfo)
 import TemplateEditor.Data.Flags as Flags
 import TemplateEditor.Data.Session as Session exposing (Session)
@@ -15,6 +16,7 @@ type alias AppState =
     , teApiUrl : String
     , session : Session
     , invalidSession : Bool
+    , seed : Seed
     }
 
 
@@ -41,6 +43,7 @@ init flagsValue route navigationKey =
     , teApiUrl = flags.teApiUrl
     , session = Maybe.withDefault Session.init flags.session
     , invalidSession = invalidSession
+    , seed = Random.initialSeed flags.seed
     }
 
 

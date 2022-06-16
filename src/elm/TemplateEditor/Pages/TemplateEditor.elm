@@ -1,4 +1,4 @@
-module TemplateEditor.Pages.TemplateEditor exposing (Model, Msg, init, initialModel, update, view)
+module TemplateEditor.Pages.TemplateEditor exposing (Model, Msg, init, initialModel, subscriptions, update, view)
 
 import ActionResult exposing (ActionResult)
 import Html exposing (Html, a, button, div, h2, hr, li, text)
@@ -7,6 +7,7 @@ import Html.Events exposing (onClick)
 import Html.Extra exposing (emptyNode)
 import Http
 import Maybe.Extra as Maybe
+import Random exposing (Seed)
 import TemplateEditor.Api.TemplateEditor.Data.TemplateEditorDetail exposing (TemplateEditorDetail)
 import TemplateEditor.Api.TemplateEditor.TemplateEditors as TemplateEditors
 import TemplateEditor.Common.Setters exposing (setTemplateEditor)
@@ -47,8 +48,12 @@ type Msg
     | CanvasMsg Canvas.Msg
 
 
-update : AppState -> Msg -> Model -> ( Model, Cmd Msg )
+update : AppState -> Msg -> Model -> ( Seed, Model, Cmd Msg )
 update appState msg model =
+    let
+        withSeed ( m, c ) =
+            ( appState.seed, m, c )
+    in
     case msg of
         GetTemplateEditorComplete result ->
             let
@@ -58,54 +63,73 @@ update appState msg model =
                         , canvasModel = ActionResult.toMaybe <| ActionResult.map (Canvas.init << .content) templateEditor
                     }
             in
-            ( ActionResult.apply setData
-                (always (ActionResult.Error "Unable to get template editor"))
-                result
-                model
-            , Cmd.none
-            )
+            withSeed <|
+                ( ActionResult.apply setData
+                    (always (ActionResult.Error "Unable to get template editor"))
+                    result
+                    model
+                , Cmd.none
+                )
 
         Save ->
-            case model.templateEditor of
-                ActionResult.Success templateEditor ->
-                    let
-                        newTemplateEditor =
-                            { templateEditor | content = Maybe.unwrap templateEditor.content .app model.canvasModel }
+            withSeed <|
+                case model.templateEditor of
+                    ActionResult.Success templateEditor ->
+                        let
+                            newTemplateEditor =
+                                { templateEditor | content = Maybe.unwrap templateEditor.content .app model.canvasModel }
 
-                        cmd =
-                            TemplateEditors.putTemplateEditor appState model.id newTemplateEditor SaveComplete
-                    in
-                    ( { model | saving = ActionResult.Loading }
-                    , cmd
-                    )
+                            cmd =
+                                TemplateEditors.putTemplateEditor appState model.id newTemplateEditor SaveComplete
+                        in
+                        ( { model | saving = ActionResult.Loading }
+                        , cmd
+                        )
 
-                _ ->
-                    ( model, Cmd.none )
+                    _ ->
+                        ( model, Cmd.none )
 
         SaveComplete result ->
-            case result of
-                Ok _ ->
-                    ( { model | saving = ActionResult.Success () }
-                    , Cmd.none
-                    )
+            withSeed <|
+                case result of
+                    Ok _ ->
+                        ( { model | saving = ActionResult.Success () }
+                        , Cmd.none
+                        )
 
-                Err _ ->
-                    ( { model | saving = ActionResult.Error "Unable to save data" }
-                    , Cmd.none
-                    )
+                    Err _ ->
+                        ( { model | saving = ActionResult.Error "Unable to save data" }
+                        , Cmd.none
+                        )
 
         ResetSave ->
-            ( { model | saving = ActionResult.Unset }, Cmd.none )
+            withSeed <|
+                ( { model | saving = ActionResult.Unset }, Cmd.none )
 
         CanvasMsg canvasMsg ->
             case model.canvasModel of
                 Just canvasModel ->
-                    ( { model | canvasModel = Just <| Canvas.update canvasMsg canvasModel }
+                    let
+                        ( seed, newCanvasModel ) =
+                            Canvas.update appState canvasMsg canvasModel
+                    in
+                    ( seed
+                    , { model | canvasModel = Just newCanvasModel }
                     , Cmd.none
                     )
 
                 Nothing ->
-                    ( model, Cmd.none )
+                    withSeed <| ( model, Cmd.none )
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    case model.canvasModel of
+        Just canvasModel ->
+            Sub.map CanvasMsg (Canvas.subscriptions canvasModel)
+
+        Nothing ->
+            Sub.none
 
 
 view : Model -> Html Msg

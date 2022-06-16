@@ -28,7 +28,7 @@ decoder =
                             Ok app ->
                                 D.succeed app
 
-                            Err err ->
+                            Err _ ->
                                 D.fail "Error"
                     )
     in

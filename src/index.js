@@ -17,6 +17,7 @@ function loadApp() {
             dswApiUrl: getDSWApiUrl(),
             teApiUrl: getTEApiUrl(),
             session: JSON.parse(localStorage.getItem('session')),
+            seed: Math.floor(Math.random() * 0xFFFFFFFF)
         }
     })
 
