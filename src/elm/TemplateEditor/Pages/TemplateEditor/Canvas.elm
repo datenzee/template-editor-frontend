@@ -3,8 +3,8 @@ module TemplateEditor.Pages.TemplateEditor.Canvas exposing (..)
 import Bootstrap.Button as Button
 import Bootstrap.Dropdown as Dropdown
 import Dict exposing (Dict)
-import Html exposing (Html, a, div, form, hr, i, input, label, text, textarea)
-import Html.Attributes exposing (class, style, type_, value)
+import Html exposing (Html, a, div, form, hr, i, input, label, pre, text, textarea)
+import Html.Attributes exposing (class, readonly, rows, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Html.Extra exposing (emptyNode)
 import Maybe.Extra as Maybe
@@ -12,7 +12,7 @@ import Random exposing (Seed)
 import TemplateEditor.Common.FontAwesome exposing (fa, far, fas)
 import TemplateEditor.Common.Setters exposing (setContent, setPredicate)
 import TemplateEditor.Data.AppState exposing (AppState)
-import TemplateEditor.Data.DUIO.App exposing (App)
+import TemplateEditor.Data.DUIO.App as App exposing (App)
 import TemplateEditor.Data.DUIO.Component as Component exposing (Component(..), Container, IterativeContainer, PlainTextComponent(..), PlainTextComponentData, TitleComponent)
 import Uuid exposing (Uuid)
 
@@ -344,7 +344,20 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
-    div [ class "app-canvas" ] [ viewApp model ]
+    div [ class "app-canvas row" ]
+        [ div [ class "col-6" ] [ viewApp model ]
+        , div [ class "col-6" ] [ viewCode model ]
+        ]
+
+
+viewCode : Model -> Html Msg
+viewCode model =
+    let
+        content =
+            App.toRdf model.app
+    in
+    textarea [ class "form-control", readonly True ]
+        [ text content ]
 
 
 viewApp : Model -> Html Msg
@@ -386,7 +399,7 @@ viewComponent model component =
                         ]
                     ]
                 , hr [] []
-                , viewContainer model False iterativeContainer.content
+                , viewContainer model True iterativeContainer.content
                 ]
 
         PlainTextComponentComponent plainTextComponent ->

@@ -146,7 +146,7 @@ view model =
 
         ActionResult.Success editor ->
             let
-                savingError =
+                savingResult =
                     case model.saving of
                         ActionResult.Success _ ->
                             div [ class "alert alert-success" ]
@@ -169,10 +169,12 @@ view model =
                         Nothing ->
                             emptyNode
             in
-            div []
-                [ h2 [] [ text editor.name ]
-                , savingError
-                , button [ class "btn btn-secondary", onClick Save ] [ text "Save" ]
+            div [ class "TemplateEditor" ]
+                [ div [ class "d-flex justify-content-between align-items-center" ]
+                    [ h2 [] [ text editor.name ]
+                    , savingResult
+                    , button [ class "btn btn-secondary", onClick Save ] [ text "Save" ]
+                    ]
                 , hr [] []
                 , canvas
                 ]

@@ -8,6 +8,10 @@ module TemplateEditor.Data.DUIO.Component exposing
     , decoder
     , encode
     , getUuid
+    , rdfIdentifier
+    , rootContainerIdentifier
+    , toRdf
+    , toRdfOpts
     )
 
 import Json.Decode as D exposing (Decoder)
@@ -87,6 +91,124 @@ getUuid component =
 
         TitleComponentComponent titleComponent ->
             titleComponent.uuid
+
+
+rdfIdentifier : Component -> String
+rdfIdentifier component =
+    let
+        toIdentifier componentName uuid =
+            componentName ++ "_" ++ String.replace "-" "" (Uuid.toString uuid)
+    in
+    case component of
+        ContainerComponent container ->
+            toIdentifier "Container" container.uuid
+
+        IterativeContainerComponent iterativeContainer ->
+            toIdentifier "IterativeContainer" iterativeContainer.uuid
+
+        PlainTextComponentComponent plainTextComponent ->
+            case plainTextComponent of
+                HeadingComponent plainTextData ->
+                    toIdentifier "HeadingComponent" plainTextData.uuid
+
+                ParagraphComponent plainTextData ->
+                    toIdentifier "ParagraphComponent" plainTextData.uuid
+
+        TitleComponentComponent titleComponent ->
+            toIdentifier "TitleComponent" titleComponent.uuid
+
+
+rootContainerIdentifier : String
+rootContainerIdentifier =
+    "Container_Root"
+
+
+toRdf : Component -> String
+toRdf =
+    toRdfOpts False
+
+
+toRdfOpts : Bool -> Component -> String
+toRdfOpts isRootContainer component =
+    let
+        identifier =
+            if isRootContainer then
+                rootContainerIdentifier
+
+            else
+                rdfIdentifier component
+    in
+    case component of
+        ContainerComponent container ->
+            let
+                listIdentifier =
+                    identifier ++ "_List_"
+
+                toListEntity idx componentId =
+                    let
+                        firstAndRest =
+                            if List.length container.contains == idx + 1 then
+                                "    duio:containerListFirst :" ++ componentId ++ " ."
+
+                            else
+                                ("    duio:containerListFirst :" ++ componentId ++ " ; \n")
+                                    ++ ("    duio:containerListRest :" ++ listIdentifier ++ String.fromInt (idx + 1) ++ " . ")
+                    in
+                    (":" ++ listIdentifier ++ String.fromInt idx ++ " rdf:type owl:NamedIndividual , duio:ContainerList ;\n")
+                        ++ firstAndRest
+                        ++ "\n\n"
+
+                containerListComponents =
+                    List.map rdfIdentifier container.contains
+                        |> List.indexedMap toListEntity
+                        |> String.join ""
+
+                containerRdf =
+                    """:""" ++ identifier ++ """ rdf:type owl:NamedIndividual , duio:Container ;
+    duio:containerContains :""" ++ listIdentifier ++ """0 .                    
+
+"""
+
+                containerComponents =
+                    String.join "" <|
+                        List.map toRdf container.contains
+            in
+            containerRdf ++ containerListComponents ++ containerComponents
+
+        IterativeContainerComponent iterativeContainer ->
+            let
+                iterativeContainerRdf =
+                    """:""" ++ identifier ++ """ rdf:type owl:NamedIndividual , duio:IterativeContainer ;
+    duio:iterativeContainerContent :""" ++ rdfIdentifier (ContainerComponent iterativeContainer.content) ++ """ ;
+    duio:iterativeContainerPredicate <""" ++ iterativeContainer.predicate ++ """> .
+
+"""
+
+                contentRdf =
+                    toRdf (ContainerComponent iterativeContainer.content)
+            in
+            iterativeContainerRdf ++ contentRdf
+
+        PlainTextComponentComponent plainTextComponent ->
+            let
+                ( data, componentName ) =
+                    case plainTextComponent of
+                        HeadingComponent headingData ->
+                            ( headingData, "HeadingComponent" )
+
+                        ParagraphComponent paragraphData ->
+                            ( paragraphData, "ParagraphComponent" )
+            in
+            """:""" ++ identifier ++ """ rdf:type owl:NamedIndividual , duio:""" ++ componentName ++ """ ;
+    duio:plainTextComponentContent \"""" ++ data.content ++ """"^^xsd:string .
+
+"""
+
+        TitleComponentComponent data ->
+            """:""" ++ identifier ++ """ rdf:type owl:NamedIndividual , duio:TitleComponent ;
+    duio:titleComponentPredicate <""" ++ data.predicate ++ """> .
+
+"""
 
 
 

@@ -33,10 +33,20 @@ h1 {
   margin-bottom: 0;
 }
 
+.TemplateEditor {
+  .alert {
+    margin-bottom: 0;
+    padding-top: .125rem;
+    padding-bottom: .125rem;
+
+    .btn {
+      margin-left: 1rem;
+      margin-right: -1rem;
+    }
+  }
+}
 
 .app-canvas {
-  max-width: 80rem;
-
   a {
     cursor: pointer;
   }
@@ -54,5 +64,10 @@ h1 {
     .form-group:last-child {
       margin-bottom: 0;
     }
+  }
+
+  textarea {
+    font-family: $font-family-monospace;
+    height: 100%;
   }
 }
