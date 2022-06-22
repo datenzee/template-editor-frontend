@@ -1,5 +1,6 @@
 module TemplateEditor.Api.TemplateEditor.TemplateEditors exposing (..)
 
+import Json.Encode as E
 import TemplateEditor.Api.Api exposing (ToMsg, jwtFetch, jwtGet, jwtPost, jwtPut)
 import TemplateEditor.Api.TemplateEditor.Data.Pagination as Pagination exposing (Pagination)
 import TemplateEditor.Api.TemplateEditor.Data.TemplateEditor as TemplateEditor exposing (TemplateEditor)
@@ -20,3 +21,13 @@ getTemplateEditor appState id =
 putTemplateEditor : AppState -> Int -> TemplateEditorDetail -> ToMsg () msg -> Cmd msg
 putTemplateEditor appState id detail =
     jwtPut ("/template-editors/" ++ String.fromInt id) (TemplateEditorDetail.encode detail) (AppState.toTEServerInfo appState)
+
+
+publish : AppState -> Int -> String -> ToMsg () msg -> Cmd msg
+publish appState id rdf =
+    let
+        data =
+            E.object
+                [ ( "rdf", E.string rdf ) ]
+    in
+    jwtPost ("/template-editors/" ++ String.fromInt id ++ "/expansions-and-publications") data (AppState.toTEServerInfo appState)

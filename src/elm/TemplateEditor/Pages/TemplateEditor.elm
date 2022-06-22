@@ -2,7 +2,7 @@ module TemplateEditor.Pages.TemplateEditor exposing (Model, Msg, init, initialMo
 
 import ActionResult exposing (ActionResult)
 import Html exposing (Html, a, button, div, h2, hr, li, text)
-import Html.Attributes exposing (class)
+import Html.Attributes exposing (class, disabled)
 import Html.Events exposing (onClick)
 import Html.Extra exposing (emptyNode)
 import Http
@@ -12,6 +12,7 @@ import TemplateEditor.Api.TemplateEditor.Data.TemplateEditorDetail exposing (Tem
 import TemplateEditor.Api.TemplateEditor.TemplateEditors as TemplateEditors
 import TemplateEditor.Common.Setters exposing (setTemplateEditor)
 import TemplateEditor.Data.AppState exposing (AppState)
+import TemplateEditor.Data.DUIO.App as App
 import TemplateEditor.Pages.TemplateEditor.Canvas as Canvas
 import Uuid exposing (Uuid)
 
@@ -20,6 +21,7 @@ type alias Model =
     { id : Int
     , templateEditor : ActionResult TemplateEditorDetail
     , saving : ActionResult ()
+    , publishing : ActionResult ()
     , canvasModel : Maybe Canvas.Model
     }
 
@@ -29,6 +31,7 @@ initialModel id =
     { id = id
     , templateEditor = ActionResult.Loading
     , saving = ActionResult.Unset
+    , publishing = ActionResult.Unset
     , canvasModel = Nothing
     }
 
@@ -45,6 +48,9 @@ type Msg
     | Save
     | SaveComplete (Result Http.Error ())
     | ResetSave
+    | Publish
+    | PublishComplete (Result Http.Error ())
+    | ResetPublish
     | CanvasMsg Canvas.Msg
 
 
@@ -106,6 +112,41 @@ update appState msg model =
             withSeed <|
                 ( { model | saving = ActionResult.Unset }, Cmd.none )
 
+        Publish ->
+            withSeed <|
+                case model.templateEditor of
+                    ActionResult.Success templateEditor ->
+                        let
+                            rdf =
+                                App.toRdf templateEditor.content
+
+                            cmd =
+                                TemplateEditors.publish appState model.id rdf PublishComplete
+                        in
+                        ( { model | publishing = ActionResult.Loading }
+                        , cmd
+                        )
+
+                    _ ->
+                        ( model, Cmd.none )
+
+        PublishComplete result ->
+            withSeed <|
+                case result of
+                    Ok _ ->
+                        ( { model | publishing = ActionResult.Success () }
+                        , Cmd.none
+                        )
+
+                    Err _ ->
+                        ( { model | publishing = ActionResult.Error "Unable to publish" }
+                        , Cmd.none
+                        )
+
+        ResetPublish ->
+            withSeed <|
+                ( { model | publishing = ActionResult.Unset }, Cmd.none )
+
         CanvasMsg canvasMsg ->
             case model.canvasModel of
                 Just canvasModel ->
@@ -155,7 +196,27 @@ view model =
                                 ]
 
                         ActionResult.Error err ->
-                            div [ class "alert alert-danger" ] [ text err ]
+                            div [ class "alert alert-danger" ]
+                                [ text err
+                                , button [ onClick ResetSave, class "btn btn-danger" ] [ text "OK" ]
+                                ]
+
+                        _ ->
+                            emptyNode
+
+                publishingResult =
+                    case model.publishing of
+                        ActionResult.Success _ ->
+                            div [ class "alert alert-success" ]
+                                [ text "Published!"
+                                , button [ onClick ResetPublish, class "btn btn-success" ] [ text "OK" ]
+                                ]
+
+                        ActionResult.Error err ->
+                            div [ class "alert alert-danger" ]
+                                [ text err
+                                , button [ onClick ResetPublish, class "btn btn-danger" ] [ text "OK" ]
+                                ]
 
                         _ ->
                             emptyNode
@@ -173,7 +234,21 @@ view model =
                 [ div [ class "d-flex justify-content-between align-items-center" ]
                     [ h2 [] [ text editor.name ]
                     , savingResult
-                    , button [ class "btn btn-secondary", onClick Save ] [ text "Save" ]
+                    , publishingResult
+                    , div []
+                        [ button
+                            [ class "btn btn-outline-primary mr-2"
+                            , onClick Publish
+                            , disabled (ActionResult.isLoading model.publishing)
+                            ]
+                            [ text "Publish" ]
+                        , button
+                            [ class "btn btn-primary"
+                            , onClick Save
+                            , disabled (ActionResult.isLoading model.saving)
+                            ]
+                            [ text "Save" ]
+                        ]
                     ]
                 , hr [] []
                 , canvas
