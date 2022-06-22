@@ -8,7 +8,9 @@ module TemplateEditor.Data.DUIO.App exposing
 import Json.Decode as D exposing (Decoder)
 import Json.Decode.Pipeline as D
 import Json.Encode as E
+import Rdf
 import TemplateEditor.Data.DUIO.Component as Component exposing (Component)
+import TemplateEditor.Data.DUIO.Prefixes as Prefixes exposing (base, duio, owl, rdf)
 
 
 type alias App =
@@ -32,25 +34,26 @@ toRdf : App -> String
 toRdf app =
     let
         prefixes =
-            """@prefix duio: <http://www.semanticweb.org/janslifka/ontologies/2022/2/datenzee-ui-ontology#> .
-@prefix owl: <http://www.w3.org/2002/07/owl#> .
-@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-@prefix xml: <http://www.w3.org/XML/1998/namespace> .
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix : <http://example.com#> .
-@base <http://example.com> .
-
-
-"""
-
-        appRdf =
-            """:App rdf:type owl:NamedIndividual , duio:App ;
-    duio:rootComponent :""" ++ Component.rootContainerIdentifier ++ """ .
-
-"""
+            List.map Rdf.prefixToString
+                [ Prefixes.duioPrefix
+                , Prefixes.owlPrefix
+                , Prefixes.rdfPrefix
+                , Prefixes.xmlPrefix
+                , Prefixes.xsdPrefix
+                , Prefixes.rdfsPrefix
+                , Prefixes.basePrefix
+                ]
+                ++ [ "@base <http://example.com> ." ]
+                |> String.join "\n"
 
         rootComponent =
             Component.toRdfOpts True app.rootComponent
+
+        appRdf =
+            Rdf.createNode (base "App")
+                |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
+                |> Rdf.addPredicate (rdf "type") (duio "App")
+                |> Rdf.addPredicate (duio "rootComponent") (base Component.rootContainerIdentifier)
+                |> Rdf.nodeToString
     in
-    prefixes ++ appRdf ++ rootComponent
+    prefixes ++ "\n\n" ++ appRdf ++ rootComponent

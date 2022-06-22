@@ -17,6 +17,8 @@ module TemplateEditor.Data.DUIO.Component exposing
 import Json.Decode as D exposing (Decoder)
 import Json.Decode.Pipeline as D
 import Json.Encode as E
+import Rdf
+import TemplateEditor.Data.DUIO.Prefixes exposing (base, duio, owl, rdf)
 import Uuid exposing (Uuid)
 
 
@@ -141,48 +143,54 @@ toRdfOpts isRootContainer component =
     case component of
         ContainerComponent container ->
             let
-                listIdentifier =
-                    identifier ++ "_List_"
+                listIdentifier idx =
+                    identifier ++ "_List_" ++ String.fromInt idx
 
                 toListEntity idx componentId =
                     let
-                        firstAndRest =
+                        listEntity =
+                            Rdf.createNode (base (listIdentifier idx))
+                                |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
+                                |> Rdf.addPredicate (rdf "type") (duio "ContainerList")
+                                |> Rdf.addPredicate (duio "containerListFirst") (base componentId)
+
+                        listEntityWithRest =
                             if List.length container.contains == idx + 1 then
-                                "    duio:containerListFirst :" ++ componentId ++ " ."
+                                listEntity
 
                             else
-                                ("    duio:containerListFirst :" ++ componentId ++ " ; \n")
-                                    ++ ("    duio:containerListRest :" ++ listIdentifier ++ String.fromInt (idx + 1) ++ " . ")
+                                listEntity
+                                    |> Rdf.addPredicate (duio "containerListRest") (base (listIdentifier (idx + 1)))
                     in
-                    (":" ++ listIdentifier ++ String.fromInt idx ++ " rdf:type owl:NamedIndividual , duio:ContainerList ;\n")
-                        ++ firstAndRest
-                        ++ "\n\n"
+                    Rdf.nodeToString listEntityWithRest
+
+                containerRdf =
+                    Rdf.createNode (base identifier)
+                        |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
+                        |> Rdf.addPredicate (rdf "type") (duio "Container")
+                        |> Rdf.addPredicate (duio "containerContains") (base (listIdentifier 0))
+                        |> Rdf.nodeToString
 
                 containerListComponents =
                     List.map rdfIdentifier container.contains
                         |> List.indexedMap toListEntity
                         |> String.join ""
 
-                containerRdf =
-                    """:""" ++ identifier ++ """ rdf:type owl:NamedIndividual , duio:Container ;
-    duio:containerContains :""" ++ listIdentifier ++ """0 .                    
-
-"""
-
                 containerComponents =
-                    String.join "" <|
-                        List.map toRdf container.contains
+                    List.map toRdf container.contains
+                        |> String.join ""
             in
             containerRdf ++ containerListComponents ++ containerComponents
 
         IterativeContainerComponent iterativeContainer ->
             let
                 iterativeContainerRdf =
-                    """:""" ++ identifier ++ """ rdf:type owl:NamedIndividual , duio:IterativeContainer ;
-    duio:iterativeContainerContent :""" ++ rdfIdentifier (ContainerComponent iterativeContainer.content) ++ """ ;
-    duio:iterativeContainerPredicate <""" ++ iterativeContainer.predicate ++ """> .
-
-"""
+                    Rdf.createNode (base identifier)
+                        |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
+                        |> Rdf.addPredicate (rdf "type") (duio "IterativeContainer")
+                        |> Rdf.addPredicate (duio "iterativeContainerContent") (base (rdfIdentifier (ContainerComponent iterativeContainer.content)))
+                        |> Rdf.addPredicateIRI (duio "iterativeContainerPredicate") iterativeContainer.predicate
+                        |> Rdf.nodeToString
 
                 contentRdf =
                     toRdf (ContainerComponent iterativeContainer.content)
@@ -199,20 +207,18 @@ toRdfOpts isRootContainer component =
                         ParagraphComponent paragraphData ->
                             ( paragraphData, "ParagraphComponent" )
             in
-            """:""" ++ identifier ++ """ rdf:type owl:NamedIndividual , duio:""" ++ componentName ++ """ ;
-    duio:plainTextComponentContent \"""" ++ data.content ++ """"^^xsd:string .
-
-"""
+            Rdf.createNode (base identifier)
+                |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
+                |> Rdf.addPredicate (rdf "type") (duio componentName)
+                |> Rdf.addPredicateLiteral (duio "plainTextComponentContent") data.content
+                |> Rdf.nodeToString
 
         TitleComponentComponent data ->
-            """:""" ++ identifier ++ """ rdf:type owl:NamedIndividual , duio:TitleComponent ;
-    duio:titleComponentPredicate <""" ++ data.predicate ++ """> .
-
-"""
-
-
-
--- Container
+            Rdf.createNode (base identifier)
+                |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
+                |> Rdf.addPredicate (rdf "type") (duio "TitleComponent")
+                |> Rdf.addPredicateIRI (duio "titleComponentPredicate") data.predicate
+                |> Rdf.nodeToString
 
 
 type alias Container =
