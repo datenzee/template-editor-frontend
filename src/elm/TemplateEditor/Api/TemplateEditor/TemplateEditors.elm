@@ -30,4 +30,4 @@ publish appState id rdf =
             E.object
                 [ ( "rdf", E.string rdf ) ]
     in
-    jwtPost ("/template-editors/" ++ String.fromInt id ++ "/expansions-and-publications") data (AppState.toTEServerInfo appState)
+    jwtPost ("/template-editors/" ++ String.fromInt id ++ "/expansions") data (AppState.toTEServerInfo appState)
