@@ -31,6 +31,15 @@ $fa-font-path: '~@fortawesome/fontawesome-free/webfonts' !default;
 h1 {
   font-size: 1.5rem;
   margin-bottom: 0;
+
+  a {
+    color: $white;
+
+    &:hover {
+      color: $white;
+      text-decoration: none;
+    }
+  }
 }
 
 .TemplateEditor {
