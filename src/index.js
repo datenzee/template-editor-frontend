@@ -1,5 +1,7 @@
 const program = require('./elm/TemplateEditor.elm')
 
+const registerCopyPorts = require('./js/copyPorts')
+
 
 function getDSWApiUrl() {
     if (window.templateEditor && window.templateEditor['dswApiUrl']) return window.templateEditor['dswApiUrl']
@@ -33,6 +35,8 @@ function loadApp() {
         localStorage.removeItem('session')
         location.reload()
     })
+
+    registerCopyPorts(app)
 }
 
 

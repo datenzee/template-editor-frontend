@@ -14,3 +14,10 @@ port clearSession : () -> Cmd msg
 
 
 port clearSessionAndReload : () -> Cmd msg
+
+
+
+-- Copy
+
+
+port copyToClipboard : String -> Cmd msg

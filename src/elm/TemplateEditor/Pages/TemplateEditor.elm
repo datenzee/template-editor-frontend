@@ -14,6 +14,7 @@ import TemplateEditor.Common.Setters exposing (setTemplateEditor)
 import TemplateEditor.Data.AppState exposing (AppState)
 import TemplateEditor.Data.DUIO.App as App
 import TemplateEditor.Pages.TemplateEditor.Canvas as Canvas
+import TemplateEditor.Ports as Ports
 import Uuid exposing (Uuid)
 
 
@@ -52,6 +53,7 @@ type Msg
     | PublishComplete (Result Http.Error ())
     | ResetPublish
     | CanvasMsg Canvas.Msg
+    | CopyToClipboard
 
 
 update : AppState -> Msg -> Model -> ( Seed, Model, Cmd Msg )
@@ -162,6 +164,22 @@ update appState msg model =
                 Nothing ->
                     withSeed <| ( model, Cmd.none )
 
+        CopyToClipboard ->
+            withSeed <|
+                case model.templateEditor of
+                    ActionResult.Success templateEditor ->
+                        let
+                            rdf =
+                                App.toRdf templateEditor.content
+
+                            cmd =
+                                Ports.copyToClipboard rdf
+                        in
+                        ( model, cmd )
+
+                    _ ->
+                        ( model, Cmd.none )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -237,6 +255,11 @@ view model =
                     , publishingResult
                     , div []
                         [ button
+                            [ class "btn btn-outline-primary mr-2"
+                            , onClick CopyToClipboard
+                            ]
+                            [ text "Copy" ]
+                        , button
                             [ class "btn btn-outline-primary mr-2"
                             , onClick Publish
                             , disabled (ActionResult.isLoading model.publishing)
