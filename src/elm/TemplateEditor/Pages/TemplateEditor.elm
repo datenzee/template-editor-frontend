@@ -172,11 +172,11 @@ update appState msg model =
 
         CopyToClipboard ->
             withSeed <|
-                case model.templateEditor of
-                    ActionResult.Success templateEditor ->
+                case model.canvasModel of
+                    Just canvasModel ->
                         let
                             rdf =
-                                App.toRdf templateEditor.content
+                                App.toRdf canvasModel.app
 
                             cmd =
                                 Ports.copyToClipboard rdf
