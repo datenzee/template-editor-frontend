@@ -1,7 +1,15 @@
-module TemplateEditor.Pages.TemplateEditor exposing (Model, Msg, init, initialModel, subscriptions, update, view)
+module TemplateEditor.Pages.TemplateEditor exposing
+    ( Model
+    , Msg
+    , init
+    , initialModel
+    , subscriptions
+    , update
+    , view
+    )
 
 import ActionResult exposing (ActionResult)
-import Html exposing (Html, a, button, div, h2, hr, li, text)
+import Html exposing (Html, button, div, h2, hr, text)
 import Html.Attributes exposing (class, disabled)
 import Html.Events exposing (onClick)
 import Html.Extra exposing (emptyNode)
@@ -10,12 +18,10 @@ import Maybe.Extra as Maybe
 import Random exposing (Seed)
 import TemplateEditor.Api.TemplateEditor.Data.TemplateEditorDetail exposing (TemplateEditorDetail)
 import TemplateEditor.Api.TemplateEditor.TemplateEditors as TemplateEditors
-import TemplateEditor.Common.Setters exposing (setTemplateEditor)
 import TemplateEditor.Data.AppState exposing (AppState)
 import TemplateEditor.Data.DUIO.App as App
 import TemplateEditor.Pages.TemplateEditor.Canvas as Canvas
 import TemplateEditor.Ports as Ports
-import Uuid exposing (Uuid)
 
 
 type alias Model =

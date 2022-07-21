@@ -1,5 +1,6 @@
 module TemplateEditor.Common.Setters exposing
-    ( setContent
+    ( setComponentType
+    , setContent
     , setDashboard
     , setLogin
     , setPredicate
@@ -11,6 +12,11 @@ module TemplateEditor.Common.Setters exposing
 setContent : v -> { a | content : v } -> { a | content : v }
 setContent value data =
     { data | content = value }
+
+
+setComponentType : v -> { a | componentType : v } -> { a | componentType : v }
+setComponentType value data =
+    { data | componentType = value }
 
 
 setDashboard : v -> { a | dashboard : v } -> { a | dashboard : v }

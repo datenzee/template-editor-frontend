@@ -79,4 +79,15 @@ h1 {
     font-family: $font-family-monospace;
     height: 100%;
   }
+
+  .dropdown-text {
+    .btn {
+      padding-left: 0;
+      padding-right: 0;
+      color: $body-color;
+      text-decoration: none !important;
+      outline: none;
+      box-shadow: none;
+    }
+  }
 }

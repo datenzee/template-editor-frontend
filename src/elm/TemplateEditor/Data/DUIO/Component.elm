@@ -1,10 +1,10 @@
 module TemplateEditor.Data.DUIO.Component exposing
     ( Component(..)
     , Container
+    , ContentComponent
+    , ContentComponentContent(..)
+    , ContentComponentType(..)
     , IterativeContainer
-    , PlainTextComponent(..)
-    , PlainTextComponentData
-    , TitleComponent
     , decoder
     , encode
     , getUuid
@@ -29,8 +29,7 @@ import Uuid exposing (Uuid)
 type Component
     = ContainerComponent Container
     | IterativeContainerComponent IterativeContainer
-    | PlainTextComponentComponent PlainTextComponent
-    | TitleComponentComponent TitleComponent
+    | ContentComponentComponent ContentComponent
 
 
 decoder : Decoder Component
@@ -48,11 +47,8 @@ decoderByType componentType =
         "IterativeContainer" ->
             D.map IterativeContainerComponent iterativeContainerDecoder
 
-        "PlainTextComponent" ->
-            D.map PlainTextComponentComponent plainTextComponentDecoder
-
-        "TitleComponent" ->
-            D.map TitleComponentComponent titleComponentDecoder
+        "ContentComponent" ->
+            D.map ContentComponentComponent contentComponentDecoder
 
         _ ->
             D.fail <| "Unknown component type: " ++ componentType
@@ -67,11 +63,8 @@ encode component =
         IterativeContainerComponent iterativeContainer ->
             iterativeContainerEncode iterativeContainer
 
-        PlainTextComponentComponent plainTextComponent ->
-            plainTextComponentEncode plainTextComponent
-
-        TitleComponentComponent titleComponent ->
-            titleComponentEncode titleComponent
+        ContentComponentComponent contentComponent ->
+            contentComponentEncode contentComponent
 
 
 getUuid : Component -> Uuid
@@ -83,16 +76,8 @@ getUuid component =
         IterativeContainerComponent iterativeContainer ->
             iterativeContainer.uuid
 
-        PlainTextComponentComponent plainTextComponent ->
-            case plainTextComponent of
-                HeadingComponent headingComponent ->
-                    headingComponent.uuid
-
-                ParagraphComponent paragraphComponent ->
-                    paragraphComponent.uuid
-
-        TitleComponentComponent titleComponent ->
-            titleComponent.uuid
+        ContentComponentComponent contentComponent ->
+            contentComponent.uuid
 
 
 rdfIdentifier : Component -> String
@@ -108,16 +93,13 @@ rdfIdentifier component =
         IterativeContainerComponent iterativeContainer ->
             toIdentifier "IterativeContainer" iterativeContainer.uuid
 
-        PlainTextComponentComponent plainTextComponent ->
-            case plainTextComponent of
-                HeadingComponent plainTextData ->
-                    toIdentifier "HeadingComponent" plainTextData.uuid
+        ContentComponentComponent contentComponent ->
+            case contentComponent.componentType of
+                HeadingContentComponentType ->
+                    toIdentifier "HeadingComponent" contentComponent.uuid
 
-                ParagraphComponent plainTextData ->
-                    toIdentifier "ParagraphComponent" plainTextData.uuid
-
-        TitleComponentComponent titleComponent ->
-            toIdentifier "TitleComponent" titleComponent.uuid
+                ParagraphContentComponentType ->
+                    toIdentifier "ParagraphComponent" contentComponent.uuid
 
 
 rootContainerIdentifier : String
@@ -197,28 +179,41 @@ toRdfOpts isRootContainer component =
             in
             iterativeContainerRdf ++ contentRdf
 
-        PlainTextComponentComponent plainTextComponent ->
+        ContentComponentComponent contentComponent ->
             let
-                ( data, componentName ) =
-                    case plainTextComponent of
-                        HeadingComponent headingData ->
-                            ( headingData, "HeadingComponent" )
+                componentName =
+                    case contentComponent.componentType of
+                        HeadingContentComponentType ->
+                            "HeadingComponent"
 
-                        ParagraphComponent paragraphData ->
-                            ( paragraphData, "ParagraphComponent" )
+                        ParagraphContentComponentType ->
+                            "ParagraphComponent"
+
+                ( contentProperty, contentValue, contentRdf ) =
+                    case contentComponent.content of
+                        ContentComponentPredicate predicate ->
+                            ( duio "contentComponentPredicate", Rdf.IRI predicate, "" )
+
+                        ContentComponentText contentText ->
+                            let
+                                textContentIdentifier =
+                                    identifier ++ "_TextContent"
+
+                                textContentRdf =
+                                    Rdf.createNode (base textContentIdentifier)
+                                        |> Rdf.addPredicateLiteral (duio "textContentValue") contentText
+                                        |> Rdf.nodeToString
+                            in
+                            ( duio "contentComponentContent", Rdf.Ref (base textContentIdentifier), textContentRdf )
+
+                contentComponentRdf =
+                    Rdf.createNode (base identifier)
+                        |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
+                        |> Rdf.addPredicate (rdf "type") (duio componentName)
+                        |> Rdf.addPredicateObject contentProperty contentValue
+                        |> Rdf.nodeToString
             in
-            Rdf.createNode (base identifier)
-                |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
-                |> Rdf.addPredicate (rdf "type") (duio componentName)
-                |> Rdf.addPredicateLiteral (duio "plainTextComponentContent") data.content
-                |> Rdf.nodeToString
-
-        TitleComponentComponent data ->
-            Rdf.createNode (base identifier)
-                |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
-                |> Rdf.addPredicate (rdf "type") (duio "TitleComponent")
-                |> Rdf.addPredicateIRI (duio "titleComponentPredicate") data.predicate
-                |> Rdf.nodeToString
+            contentComponentRdf ++ contentRdf
 
 
 type alias Container =
@@ -273,86 +268,105 @@ iterativeContainerEncode container =
 
 
 
--- Plain Text Component
+-- Content Component
 
 
-type PlainTextComponent
-    = HeadingComponent PlainTextComponentData
-    | ParagraphComponent PlainTextComponentData
-
-
-type alias PlainTextComponentData =
+type alias ContentComponent =
     { uuid : Uuid
-    , content : String
+    , componentType : ContentComponentType
+    , content : ContentComponentContent
     }
 
 
-plainTextComponentDecoder : Decoder PlainTextComponent
-plainTextComponentDecoder =
-    D.field "plainTextType" D.string
-        |> D.andThen plainTextComponentDecoderByType
+type ContentComponentType
+    = HeadingContentComponentType
+    | ParagraphContentComponentType
 
 
-plainTextComponentDecoderByType : String -> Decoder PlainTextComponent
-plainTextComponentDecoderByType componentType =
-    case componentType of
-        "HeadingComponent" ->
-            D.map HeadingComponent plainTextComponentDataDecoder
-
-        "ParagraphComponent" ->
-            D.map ParagraphComponent plainTextComponentDataDecoder
-
-        _ ->
-            D.fail <| "Unknown plain text component type " ++ componentType
+type ContentComponentContent
+    = ContentComponentPredicate String
+    | ContentComponentText String
 
 
-plainTextComponentDataDecoder : Decoder PlainTextComponentData
-plainTextComponentDataDecoder =
-    D.succeed PlainTextComponentData
+contentComponentDecoder : Decoder ContentComponent
+contentComponentDecoder =
+    D.succeed ContentComponent
         |> D.required "uuid" Uuid.decoder
-        |> D.required "content" D.string
+        |> D.required "componentType" contentComponentTypeDecoder
+        |> D.required "content" contentComponentContentDecoder
 
 
-plainTextComponentEncode : PlainTextComponent -> E.Value
-plainTextComponentEncode component =
+contentComponentTypeDecoder : Decoder ContentComponentType
+contentComponentTypeDecoder =
     let
-        encodeComponent plainTextType data =
-            E.object
-                [ ( "type", E.string "PlainTextComponent" )
-                , ( "uuid", Uuid.encode data.uuid )
-                , ( "plainTextType", E.string plainTextType )
-                , ( "content", E.string data.content )
-                ]
+        decode componentType =
+            case componentType of
+                "HeadingComponent" ->
+                    D.succeed HeadingContentComponentType
+
+                "ParagraphComponent" ->
+                    D.succeed ParagraphContentComponentType
+
+                _ ->
+                    D.fail <| "Unknown plain text component type " ++ componentType
     in
-    case component of
-        HeadingComponent data ->
-            encodeComponent "HeadingComponent" data
-
-        ParagraphComponent data ->
-            encodeComponent "ParagraphComponent" data
+    D.field "type" D.string
+        |> D.andThen decode
 
 
+contentComponentContentDecoder : Decoder ContentComponentContent
+contentComponentContentDecoder =
+    let
+        decode componentType =
+            case componentType of
+                "ContentComponentPredicate" ->
+                    D.map ContentComponentPredicate (D.field "predicate" D.string)
 
--- Title Component
+                "ContentComponentText" ->
+                    D.map ContentComponentText (D.field "text" D.string)
+
+                _ ->
+                    D.fail <| "Unknown plain text component type " ++ componentType
+    in
+    D.field "type" D.string
+        |> D.andThen decode
 
 
-type alias TitleComponent =
-    { uuid : Uuid
-    , predicate : String
-    }
-
-
-titleComponentDecoder : Decoder TitleComponent
-titleComponentDecoder =
-    D.succeed TitleComponent
-        |> D.required "uuid" Uuid.decoder
-        |> D.required "predicate" D.string
-
-
-titleComponentEncode : TitleComponent -> E.Value
-titleComponentEncode component =
+contentComponentEncode : ContentComponent -> E.Value
+contentComponentEncode component =
     E.object
-        [ ( "type", E.string "TitleComponent" )
+        [ ( "type", E.string "ContentComponent" )
         , ( "uuid", Uuid.encode component.uuid )
-        , ( "predicate", E.string component.predicate )
+        , ( "componentType", contentComponentTypeEncode component.componentType )
+        , ( "content", contentComponentContentEncode component.content )
         ]
+
+
+contentComponentTypeEncode : ContentComponentType -> E.Value
+contentComponentTypeEncode contentComponentType =
+    case contentComponentType of
+        HeadingContentComponentType ->
+            E.object
+                [ ( "type", E.string "HeadingComponent" )
+                ]
+
+        ParagraphContentComponentType ->
+            E.object
+                [ ( "type", E.string "ParagraphComponent" )
+                ]
+
+
+contentComponentContentEncode : ContentComponentContent -> E.Value
+contentComponentContentEncode contentComponentContent =
+    case contentComponentContent of
+        ContentComponentPredicate predicate ->
+            E.object
+                [ ( "type", E.string "ContentComponentPredicate" )
+                , ( "predicate", E.string predicate )
+                ]
+
+        ContentComponentText text ->
+            E.object
+                [ ( "type", E.string "ContentComponentText" )
+                , ( "text", E.string text )
+                ]

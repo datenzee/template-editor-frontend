@@ -5,7 +5,7 @@ import Rdf
 
 duioPrefix : Rdf.Prefix
 duioPrefix =
-    Rdf.createPrefix "duio" "http://www.semanticweb.org/janslifka/ontologies/2022/2/datenzee-ui-ontology#"
+    Rdf.createPrefix "duio" "http://purl.org/datenzee/ui-ontology#"
 
 
 duio : String -> String

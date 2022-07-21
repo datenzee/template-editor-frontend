@@ -10,10 +10,10 @@ import Html.Extra exposing (emptyNode)
 import Maybe.Extra as Maybe
 import Random exposing (Seed)
 import TemplateEditor.Common.FontAwesome exposing (fa, far, fas)
-import TemplateEditor.Common.Setters exposing (setContent, setPredicate)
+import TemplateEditor.Common.Setters exposing (setComponentType, setContent, setPredicate)
 import TemplateEditor.Data.AppState exposing (AppState)
 import TemplateEditor.Data.DUIO.App as App exposing (App)
-import TemplateEditor.Data.DUIO.Component as Component exposing (Component(..), Container, IterativeContainer, PlainTextComponent(..), PlainTextComponentData, TitleComponent)
+import TemplateEditor.Data.DUIO.Component as Component exposing (Component(..), Container, ContentComponent, ContentComponentContent(..), ContentComponentType(..), IterativeContainer)
 import Uuid exposing (Uuid)
 
 
@@ -34,12 +34,10 @@ type Msg
     = DropdownMsg String Dropdown.State
     | AddContainer Uuid
     | AddIterativeContainer Uuid
-    | AddTitleComponent Uuid
-    | AddHeadingComponent Uuid
-    | AddParagraphComponent Uuid
+    | AddContentComponent Uuid
     | UpdateIterativeContainerPredicate Uuid String
-    | UpdateTitleComponentPredicate Uuid String
-    | UpdatePlainTextComponentContent Uuid String
+    | UpdateContentComponentType Uuid ContentComponentType
+    | UpdateContentComponentContent Uuid ContentComponentContent
     | MoveComponentUp Uuid
     | MoveComponentDown Uuid
     | DeleteComponent Uuid
@@ -69,9 +67,9 @@ update appState msg model =
                 mapFn (mapHelper uuid updateFn) model.app.rootComponent
     in
     case msg of
-        DropdownMsg uuid state ->
+        DropdownMsg id state ->
             ( appState.seed
-            , { model | dropdownStates = Dict.insert uuid state model.dropdownStates }
+            , { model | dropdownStates = Dict.insert id state model.dropdownStates }
             )
 
         AddContainer parentUuid ->
@@ -107,60 +105,33 @@ update appState msg model =
             in
             ( newSeed2, addComponent parentUuid iterativeContainer )
 
-        AddTitleComponent parentUuid ->
+        AddContentComponent parentUuid ->
             let
                 ( uuid, newSeed ) =
                     Random.step Uuid.uuidGenerator appState.seed
 
-                titleComponent =
-                    TitleComponentComponent
+                contentComponent =
+                    ContentComponentComponent
                         { uuid = uuid
-                        , predicate = ""
+                        , componentType = HeadingContentComponentType
+                        , content = ContentComponentText ""
                         }
             in
-            ( newSeed, addComponent parentUuid titleComponent )
-
-        AddHeadingComponent parentUuid ->
-            let
-                ( uuid, newSeed ) =
-                    Random.step Uuid.uuidGenerator appState.seed
-
-                headingComponent =
-                    PlainTextComponentComponent <|
-                        HeadingComponent
-                            { uuid = uuid
-                            , content = ""
-                            }
-            in
-            ( newSeed, addComponent parentUuid headingComponent )
-
-        AddParagraphComponent parentUuid ->
-            let
-                ( uuid, newSeed ) =
-                    Random.step Uuid.uuidGenerator appState.seed
-
-                paragraphComponent =
-                    PlainTextComponentComponent <|
-                        ParagraphComponent
-                            { uuid = uuid
-                            , content = ""
-                            }
-            in
-            ( newSeed, addComponent parentUuid paragraphComponent )
+            ( newSeed, addComponent parentUuid contentComponent )
 
         UpdateIterativeContainerPredicate uuid predicate ->
             ( appState.seed
             , updateComponent uuid mapIterativeContainer (setPredicate predicate)
             )
 
-        UpdateTitleComponentPredicate uuid predicate ->
+        UpdateContentComponentType uuid type_ ->
             ( appState.seed
-            , updateComponent uuid mapTitleComponent (setPredicate predicate)
+            , updateComponent uuid mapContentComponent (setComponentType type_)
             )
 
-        UpdatePlainTextComponentContent uuid content ->
+        UpdateContentComponentContent uuid content ->
             ( appState.seed
-            , updateComponent uuid mapPlainTextComponent (setContent content)
+            , updateComponent uuid mapContentComponent (setContent content)
             )
 
         MoveComponentUp uuid ->
@@ -229,11 +200,11 @@ mapIterativeContainer map component =
             other
 
 
-mapTitleComponent : (TitleComponent -> TitleComponent) -> Component -> Component
-mapTitleComponent map component =
+mapContentComponent : (ContentComponent -> ContentComponent) -> Component -> Component
+mapContentComponent map component =
     let
         mapContainer_ container =
-            { container | contains = List.map (mapTitleComponent map) container.contains }
+            { container | contains = List.map (mapContentComponent map) container.contains }
     in
     case component of
         ContainerComponent container ->
@@ -243,39 +214,9 @@ mapTitleComponent map component =
             IterativeContainerComponent <|
                 { iterativeContainer | content = mapContainer_ iterativeContainer.content }
 
-        TitleComponentComponent titleComponent ->
-            TitleComponentComponent <|
-                map titleComponent
-
-        other ->
-            other
-
-
-mapPlainTextComponent : (PlainTextComponentData -> PlainTextComponentData) -> Component -> Component
-mapPlainTextComponent map component =
-    let
-        mapContainer_ container =
-            { container | contains = List.map (mapPlainTextComponent map) container.contains }
-    in
-    case component of
-        ContainerComponent container ->
-            ContainerComponent <| mapContainer_ container
-
-        IterativeContainerComponent iterativeContainer ->
-            IterativeContainerComponent <|
-                { iterativeContainer | content = mapContainer_ iterativeContainer.content }
-
-        PlainTextComponentComponent plainTextComponent ->
-            PlainTextComponentComponent <|
-                case plainTextComponent of
-                    HeadingComponent data ->
-                        HeadingComponent <| map data
-
-                    ParagraphComponent data ->
-                        ParagraphComponent <| map data
-
-        other ->
-            other
+        ContentComponentComponent contentComponent ->
+            ContentComponentComponent <|
+                map contentComponent
 
 
 mapHelper : Uuid -> ({ a | uuid : Uuid } -> { a | uuid : Uuid }) -> { a | uuid : Uuid } -> { a | uuid : Uuid }
@@ -334,8 +275,8 @@ moveDown uuid components =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     let
-        toDropdownSub ( uuid, state ) =
-            Dropdown.subscriptions state (DropdownMsg uuid)
+        toDropdownSub ( id, state ) =
+            Dropdown.subscriptions state (DropdownMsg id)
     in
     Dict.toList model.dropdownStates
         |> List.map toDropdownSub
@@ -402,54 +343,103 @@ viewComponent model component =
                 , viewContainer model True iterativeContainer.content
                 ]
 
-        PlainTextComponentComponent plainTextComponent ->
-            case plainTextComponent of
-                HeadingComponent headingComponent ->
-                    viewCard { icon = "fas fa-heading", label = "Heading", uuid = headingComponent.uuid, controls = True }
-                        [ div [ class "form-group row" ]
-                            [ label
-                                [ class "col-md-2 col-form-label"
-                                ]
-                                [ text "Content" ]
-                            , div [ class "col-md-10" ]
-                                [ input
-                                    [ type_ "text"
-                                    , class "form-control"
-                                    , onInput (UpdatePlainTextComponentContent headingComponent.uuid)
-                                    , value headingComponent.content
-                                    ]
-                                    []
-                                ]
-                            ]
-                        ]
+        ContentComponentComponent contentComponent ->
+            let
+                getComponentIconAndName componentType =
+                    case componentType of
+                        HeadingContentComponentType ->
+                            ( "fas fa-heading", "Heading" )
 
-                ParagraphComponent paragraphComponent ->
-                    viewCard { icon = "fas fa-paragraph", label = "Paragraph", uuid = paragraphComponent.uuid, controls = True }
-                        [ div [ class "form-group" ]
-                            [ label [ class "form-label" ]
-                                [ text "Content" ]
-                            , textarea
-                                [ class "form-control"
-                                , onInput (UpdatePlainTextComponentContent paragraphComponent.uuid)
-                                , value paragraphComponent.content
-                                ]
-                                []
-                            ]
-                        ]
+                        ParagraphContentComponentType ->
+                            ( "fas fa-paragraph", "Paragraph" )
 
-        TitleComponentComponent titleComponent ->
-            viewCard { icon = "fas fa-link", label = "Title", uuid = titleComponent.uuid, controls = True }
+                ( componentIcon, componentName ) =
+                    getComponentIconAndName contentComponent.componentType
+
+                typeDropdownId =
+                    "content-type-" ++ Uuid.toString contentComponent.uuid
+
+                typeDropdownState =
+                    Maybe.withDefault Dropdown.initialState <|
+                        Dict.get typeDropdownId model.dropdownStates
+
+                typeDropdownItem componentType =
+                    let
+                        ( icon, label ) =
+                            getComponentIconAndName componentType
+                    in
+                    Dropdown.buttonItem [ onClick (UpdateContentComponentType contentComponent.uuid componentType) ]
+                        [ fa icon [ class "mr-2 text-muted" ], text label ]
+
+                componentTitleDropdown =
+                    Dropdown.dropdown typeDropdownState
+                        { options = [ Dropdown.attrs [ class "dropdown-text" ] ]
+                        , toggleMsg = DropdownMsg typeDropdownId
+                        , toggleButton =
+                            Dropdown.toggle [ Button.roleLink ]
+                                [ fa componentIcon [ class "mr-1" ]
+                                , text componentName
+                                ]
+                        , items = List.map typeDropdownItem [ HeadingContentComponentType, ParagraphContentComponentType ]
+                        }
+
+                ( contentValue, toContent ) =
+                    case contentComponent.content of
+                        ContentComponentPredicate value ->
+                            ( value, ContentComponentPredicate )
+
+                        ContentComponentText value ->
+                            ( value, ContentComponentText )
+
+                getContentLabel componentContent =
+                    case componentContent of
+                        ContentComponentPredicate _ ->
+                            "Predicate"
+
+                        ContentComponentText _ ->
+                            "Text"
+
+                contentDropdownId =
+                    "content-content-" ++ Uuid.toString contentComponent.uuid
+
+                contentDropdownState =
+                    Maybe.withDefault Dropdown.initialState <|
+                        Dict.get contentDropdownId model.dropdownStates
+
+                contentDropdownItem content =
+                    let
+                        newContent =
+                            content contentValue
+
+                        label =
+                            getContentLabel newContent
+                    in
+                    Dropdown.buttonItem
+                        [ onClick (UpdateContentComponentContent contentComponent.uuid newContent) ]
+                        [ text label ]
+
+                componentContentLabelDropdown =
+                    Dropdown.dropdown contentDropdownState
+                        { options = [ Dropdown.attrs [ class "dropdown-text" ] ]
+                        , toggleMsg = DropdownMsg contentDropdownId
+                        , toggleButton =
+                            Dropdown.toggle [ Button.roleLink ]
+                                [ text (getContentLabel contentComponent.content) ]
+                        , items = List.map contentDropdownItem [ ContentComponentPredicate, ContentComponentText ]
+                        }
+            in
+            viewCardExtra { component = componentTitleDropdown, uuid = contentComponent.uuid, controls = True }
                 [ div [ class "form-group row" ]
                     [ label
                         [ class "col-md-2 col-form-label"
                         ]
-                        [ text "Predicate" ]
+                        [ componentContentLabelDropdown ]
                     , div [ class "col-md-10" ]
                         [ input
                             [ type_ "text"
                             , class "form-control"
-                            , onInput (UpdateTitleComponentPredicate titleComponent.uuid)
-                            , value titleComponent.predicate
+                            , onInput (UpdateContentComponentContent contentComponent.uuid << toContent)
+                            , value contentValue
                             ]
                             []
                         ]
@@ -460,15 +450,15 @@ viewComponent model component =
 viewContainer : Model -> Bool -> Container -> Html Msg
 viewContainer model contentOnly container =
     let
-        uuidString =
-            Uuid.toString container.uuid
+        dropdownId =
+            "container-" ++ Uuid.toString container.uuid
 
         children =
             List.map (viewComponent model) container.contains
 
         dropdownState =
             Maybe.withDefault Dropdown.initialState <|
-                Dict.get uuidString model.dropdownStates
+                Dict.get dropdownId model.dropdownStates
 
         dropdownItem icon label msg =
             Dropdown.buttonItem [ onClick msg ] [ fa icon [ class "mr-2 text-muted" ], text label ]
@@ -476,7 +466,7 @@ viewContainer model contentOnly container =
         dropdown =
             Dropdown.dropdown dropdownState
                 { options = []
-                , toggleMsg = DropdownMsg uuidString
+                , toggleMsg = DropdownMsg dropdownId
                 , toggleButton =
                     Dropdown.toggle [ Button.outlineSecondary, Button.small ]
                         [ fas "fa-plus" [ class "mr-1" ]
@@ -485,9 +475,7 @@ viewContainer model contentOnly container =
                 , items =
                     [ dropdownItem "far fa-square" "Container" (AddContainer container.uuid)
                     , dropdownItem "fas fa-sync-alt" "IterativeContainer" (AddIterativeContainer container.uuid)
-                    , dropdownItem "fas fa-link" "Title" (AddTitleComponent container.uuid)
-                    , dropdownItem "fas fa-heading" "PlainText / Heading" (AddHeadingComponent container.uuid)
-                    , dropdownItem "fas fa-paragraph" "PlainText / Paragraph" (AddParagraphComponent container.uuid)
+                    , dropdownItem "far fa-file-alt" "Content" (AddContentComponent container.uuid)
                     ]
                 }
 
@@ -510,7 +498,27 @@ type alias ViewCardConfig =
 
 
 viewCard : ViewCardConfig -> List (Html Msg) -> Html Msg
-viewCard { icon, label, uuid, controls } content =
+viewCard { icon, label, uuid, controls } =
+    viewCardExtra
+        { component =
+            div []
+                [ fa icon [ class "mr-1" ]
+                , text label
+                ]
+        , uuid = uuid
+        , controls = controls
+        }
+
+
+type alias ViewCardExtraConfig =
+    { component : Html Msg
+    , uuid : Uuid
+    , controls : Bool
+    }
+
+
+viewCardExtra : ViewCardExtraConfig -> List (Html Msg) -> Html Msg
+viewCardExtra { component, uuid, controls } content =
     let
         moveUpButton =
             a [ onClick (MoveComponentUp uuid), class "text-primary mr-3" ]
@@ -537,10 +545,7 @@ viewCard { icon, label, uuid, controls } content =
     in
     div [ class "card" ]
         [ div [ class "card-header d-flex justify-content-between" ]
-            [ div []
-                [ fa icon [ class "mr-1" ]
-                , text label
-                ]
+            [ component
             , controlButtons
             ]
         , div [ class "card-body" ] content
