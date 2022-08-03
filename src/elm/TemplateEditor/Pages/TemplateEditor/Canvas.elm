@@ -289,20 +289,9 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
-    div [ class "app-canvas row" ]
-        [ div [ class "col-6" ] [ viewApp model ]
-        , div [ class "col-6" ] [ viewCode model ]
+    div [ class "app-canvas" ]
+        [ viewApp model
         ]
-
-
-viewCode : Model -> Html Msg
-viewCode model =
-    let
-        content =
-            App.toRdf model.app
-    in
-    textarea [ class "form-control", readonly True ]
-        [ text content ]
 
 
 viewApp : Model -> Html Msg

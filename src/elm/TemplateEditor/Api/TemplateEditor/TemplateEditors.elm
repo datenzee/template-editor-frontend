@@ -3,6 +3,7 @@ module TemplateEditor.Api.TemplateEditor.TemplateEditors exposing (..)
 import Json.Encode as E
 import TemplateEditor.Api.Api exposing (ToMsg, jwtFetch, jwtGet, jwtPost, jwtPut)
 import TemplateEditor.Api.TemplateEditor.Data.Pagination as Pagination exposing (Pagination)
+import TemplateEditor.Api.TemplateEditor.Data.PublishResult as PublishResult exposing (PublishResult)
 import TemplateEditor.Api.TemplateEditor.Data.TemplateEditor as TemplateEditor exposing (TemplateEditor)
 import TemplateEditor.Api.TemplateEditor.Data.TemplateEditorDetail as TemplateEditorDetail exposing (TemplateEditorDetail)
 import TemplateEditor.Data.AppState as AppState exposing (AppState)
@@ -23,11 +24,11 @@ putTemplateEditor appState id detail =
     jwtPut ("/template-editors/" ++ String.fromInt id) (TemplateEditorDetail.encode detail) (AppState.toTEServerInfo appState)
 
 
-publish : AppState -> Int -> String -> ToMsg () msg -> Cmd msg
+publish : AppState -> Int -> String -> ToMsg PublishResult msg -> Cmd msg
 publish appState id rdf =
     let
         data =
             E.object
                 [ ( "rdf", E.string rdf ) ]
     in
-    jwtPost ("/template-editors/" ++ String.fromInt id ++ "/expansions") data (AppState.toTEServerInfo appState)
+    jwtFetch ("/template-editors/" ++ String.fromInt id ++ "/expansions") PublishResult.decoder data (AppState.toTEServerInfo appState)

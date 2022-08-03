@@ -9,13 +9,14 @@ module TemplateEditor.Pages.TemplateEditor exposing
     )
 
 import ActionResult exposing (ActionResult)
-import Html exposing (Html, button, div, h2, hr, text)
-import Html.Attributes exposing (class, disabled)
-import Html.Events exposing (onClick)
+import Html exposing (Html, a, button, div, h2, hr, iframe, input, label, li, text, textarea, ul)
+import Html.Attributes exposing (class, classList, disabled, readonly, src, value)
+import Html.Events exposing (onClick, onInput)
 import Html.Extra exposing (emptyNode)
 import Http
 import Maybe.Extra as Maybe
 import Random exposing (Seed)
+import TemplateEditor.Api.TemplateEditor.Data.PublishResult exposing (PublishResult)
 import TemplateEditor.Api.TemplateEditor.Data.TemplateEditorDetail exposing (TemplateEditorDetail)
 import TemplateEditor.Api.TemplateEditor.TemplateEditors as TemplateEditors
 import TemplateEditor.Data.AppState exposing (AppState)
@@ -30,7 +31,14 @@ type alias Model =
     , saving : ActionResult ()
     , publishing : ActionResult ()
     , canvasModel : Maybe Canvas.Model
+    , rightView : RightView
+    , previewUrl : ActionResult String
     }
+
+
+type RightView
+    = PreviewView
+    | RDFView
 
 
 initialModel : Int -> Model
@@ -40,6 +48,8 @@ initialModel id =
     , saving = ActionResult.Unset
     , publishing = ActionResult.Unset
     , canvasModel = Nothing
+    , rightView = PreviewView
+    , previewUrl = ActionResult.Unset
     }
 
 
@@ -56,10 +66,12 @@ type Msg
     | SaveComplete (Result Http.Error ())
     | ResetSave
     | Publish
-    | PublishComplete (Result Http.Error ())
+    | PublishComplete (Result Http.Error PublishResult)
     | ResetPublish
     | CanvasMsg Canvas.Msg
     | CopyToClipboard
+    | SetRightView RightView
+    | UpdateDataUrl String
 
 
 update : AppState -> Msg -> Model -> ( Seed, Model, Cmd Msg )
@@ -75,6 +87,13 @@ update appState msg model =
                     { m
                         | templateEditor = templateEditor
                         , canvasModel = ActionResult.toMaybe <| ActionResult.map (Canvas.init << .content) templateEditor
+                        , previewUrl =
+                            case templateEditor of
+                                ActionResult.Success te ->
+                                    Maybe.unwrap ActionResult.Unset ActionResult.Success te.url
+
+                                _ ->
+                                    ActionResult.Unset
                     }
             in
             withSeed <|
@@ -122,27 +141,28 @@ update appState msg model =
 
         Publish ->
             withSeed <|
-                case model.templateEditor of
-                    ActionResult.Success templateEditor ->
-                        let
-                            rdf =
-                                App.toRdf templateEditor.content
+                let
+                    rdf =
+                        Maybe.unwrap "" (App.toRdf << .app) model.canvasModel
 
-                            cmd =
-                                TemplateEditors.publish appState model.id rdf PublishComplete
-                        in
-                        ( { model | publishing = ActionResult.Loading }
-                        , cmd
-                        )
-
-                    _ ->
-                        ( model, Cmd.none )
+                    cmd =
+                        TemplateEditors.publish appState model.id rdf PublishComplete
+                in
+                ( { model
+                    | publishing = ActionResult.Loading
+                    , previewUrl = ActionResult.Loading
+                  }
+                , cmd
+                )
 
         PublishComplete result ->
             withSeed <|
                 case result of
-                    Ok _ ->
-                        ( { model | publishing = ActionResult.Success () }
+                    Ok publishResult ->
+                        ( { model
+                            | publishing = ActionResult.Success ()
+                            , previewUrl = ActionResult.Success publishResult.url
+                          }
                         , Cmd.none
                         )
 
@@ -182,6 +202,28 @@ update appState msg model =
                                 Ports.copyToClipboard rdf
                         in
                         ( model, cmd )
+
+                    _ ->
+                        ( model, Cmd.none )
+
+        SetRightView rightView ->
+            withSeed ( { model | rightView = rightView }, Cmd.none )
+
+        UpdateDataUrl newDataUrl ->
+            withSeed <|
+                case model.templateEditor of
+                    ActionResult.Success templateEditor ->
+                        let
+                            dataUrl =
+                                if String.isEmpty newDataUrl then
+                                    Nothing
+
+                                else
+                                    Just newDataUrl
+                        in
+                        ( { model | templateEditor = ActionResult.Success { templateEditor | dataUrl = dataUrl } }
+                        , Cmd.none
+                        )
 
                     _ ->
                         ( model, Cmd.none )
@@ -253,9 +295,33 @@ view model =
 
                         Nothing ->
                             emptyNode
+
+                rdfView =
+                    case model.canvasModel of
+                        Just canvasModel ->
+                            viewRDF canvasModel
+
+                        Nothing ->
+                            emptyNode
+
+                preview =
+                    case model.templateEditor of
+                        ActionResult.Success templateEditor ->
+                            viewPreview model
+
+                        _ ->
+                            emptyNode
+
+                rightView =
+                    case model.rightView of
+                        PreviewView ->
+                            preview
+
+                        RDFView ->
+                            rdfView
             in
             div [ class "TemplateEditor" ]
-                [ div [ class "d-flex justify-content-between align-items-center" ]
+                [ div [ class "TemplateEditor__Header d-flex justify-content-between align-items-center" ]
                     [ h2 [] [ text editor.name ]
                     , savingResult
                     , publishingResult
@@ -264,7 +330,7 @@ view model =
                             [ class "btn btn-outline-primary mr-2"
                             , onClick CopyToClipboard
                             ]
-                            [ text "Copy" ]
+                            [ text "Copy RDF" ]
                         , button
                             [ class "btn btn-outline-primary mr-2"
                             , onClick Publish
@@ -280,5 +346,79 @@ view model =
                         ]
                     ]
                 , hr [] []
-                , canvas
+                , div [ class "row" ]
+                    [ div [ class "col-6" ]
+                        [ div [ class "form-group row mb-3" ]
+                            [ label [ class "col-md-1 col-form-label" ] [ text "DataURL" ]
+                            , div [ class "col-md-11" ] [ input [ class "form-control", value (Maybe.withDefault "" editor.dataUrl), onInput UpdateDataUrl ] [] ]
+                            ]
+                        , canvas
+                        ]
+                    , div [ class "col-6" ]
+                        [ ul [ class "nav nav-pills" ]
+                            [ li [ class "nav-item" ]
+                                [ a
+                                    [ class "nav-link"
+                                    , classList [ ( "active", model.rightView == PreviewView ) ]
+                                    , onClick (SetRightView PreviewView)
+                                    ]
+                                    [ text "Preview" ]
+                                ]
+                            , li [ class "nav-item" ]
+                                [ a
+                                    [ class "nav-link"
+                                    , classList [ ( "active", model.rightView == RDFView ) ]
+                                    , onClick (SetRightView RDFView)
+                                    ]
+                                    [ text "RDF" ]
+                                ]
+                            ]
+                        , rightView
+                        ]
+                    ]
                 ]
+
+
+viewPreview : Model -> Html Msg
+viewPreview model =
+    case model.previewUrl of
+        ActionResult.Success url ->
+            let
+                iframeUrl =
+                    case ActionResult.withDefault Nothing (ActionResult.map .dataUrl model.templateEditor) of
+                        Just dataUrl ->
+                            url ++ "?data=" ++ dataUrl
+
+                        Nothing ->
+                            url
+            in
+            iframe [ class "app-preview", src iframeUrl ] []
+
+        ActionResult.Loading ->
+            div [ class "bookshelf_wrapper" ]
+                [ ul [ class "books_list" ]
+                    [ li [ class "book_item first" ] []
+                    , li [ class "book_item second" ] []
+                    , li [ class "book_item third" ] []
+                    , li [ class "book_item fourth" ] []
+                    , li [ class "book_item fifth" ] []
+                    , li [ class "book_item sixth" ] []
+                    ]
+                , div [ class "shelf" ] []
+                ]
+
+        ActionResult.Error error ->
+            div [ class "alert alert-danger" ] [ text error ]
+
+        ActionResult.Unset ->
+            div [ class "alert alert-info" ] [ text "There is no preview URL yet." ]
+
+
+viewRDF : Canvas.Model -> Html Msg
+viewRDF canvasModel =
+    let
+        content =
+            App.toRdf canvasModel.app
+    in
+    textarea [ class "form-control code-preview", readonly True ]
+        [ text content ]
