@@ -170,13 +170,17 @@ update appState msg model =
 
 mapContainer : (Container -> Container) -> Component -> Component
 mapContainer map component =
+    let
+        mapContainer_ container =
+            map { container | contains = List.map (mapContainer map) container.contains }
+    in
     case component of
         ContainerComponent container ->
             ContainerComponent <|
-                map { container | contains = List.map (mapContainer map) container.contains }
+                mapContainer_ container
 
         IterativeContainerComponent iterativeContainer ->
-            IterativeContainerComponent { iterativeContainer | content = map iterativeContainer.content }
+            IterativeContainerComponent { iterativeContainer | content = mapContainer_ iterativeContainer.content }
 
         other ->
             other
