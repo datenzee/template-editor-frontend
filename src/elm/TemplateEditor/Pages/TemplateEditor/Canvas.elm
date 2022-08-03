@@ -114,7 +114,7 @@ update appState msg model =
                     ContentComponentComponent
                         { uuid = uuid
                         , componentType = HeadingContentComponentType
-                        , content = ContentComponentText ""
+                        , content = ContentComponentPredicate ""
                         }
             in
             ( newSeed, addComponent parentUuid contentComponent )
