@@ -150,6 +150,7 @@ toRdfOpts isRootContainer component =
                     Rdf.createNode (base identifier)
                         |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
                         |> Rdf.addPredicate (rdf "type") (duio "Container")
+                        |> Rdf.addPredicateBoolean (duio "componentIsBlock") container.isBlock
                         |> Rdf.addPredicate (duio "containerContains") (base (listIdentifier 0))
                         |> Rdf.nodeToString
 
@@ -170,6 +171,7 @@ toRdfOpts isRootContainer component =
                     Rdf.createNode (base identifier)
                         |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
                         |> Rdf.addPredicate (rdf "type") (duio "IterativeContainer")
+                        |> Rdf.addPredicateBoolean (duio "componentIsBlock") iterativeContainer.isBlock
                         |> Rdf.addPredicate (duio "iterativeContainerContent") (base (rdfIdentifier (ContainerComponent iterativeContainer.content)))
                         |> Rdf.addPredicateIRI (duio "iterativeContainerPredicate") iterativeContainer.predicate
                         |> Rdf.nodeToString
@@ -210,6 +212,7 @@ toRdfOpts isRootContainer component =
                     Rdf.createNode (base identifier)
                         |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
                         |> Rdf.addPredicate (rdf "type") (duio componentName)
+                        |> Rdf.addPredicateBoolean (duio "componentIsBlock") contentComponent.isBlock
                         |> Rdf.addPredicateObject contentProperty contentValue
                         |> Rdf.nodeToString
             in
@@ -219,6 +222,7 @@ toRdfOpts isRootContainer component =
 type alias Container =
     { uuid : Uuid
     , contains : List Component
+    , isBlock : Bool
     }
 
 
@@ -227,6 +231,7 @@ containerDecoder =
     D.succeed Container
         |> D.required "uuid" Uuid.decoder
         |> D.required "contains" (D.list decoder)
+        |> D.required "isBlock" D.bool
 
 
 containerEncode : Container -> E.Value
@@ -235,6 +240,7 @@ containerEncode container =
         [ ( "type", E.string "Container" )
         , ( "uuid", Uuid.encode container.uuid )
         , ( "contains", E.list encode container.contains )
+        , ( "isBlock", E.bool container.isBlock )
         ]
 
 
@@ -246,6 +252,7 @@ type alias IterativeContainer =
     { uuid : Uuid
     , predicate : String
     , content : Container
+    , isBlock : Bool
     }
 
 
@@ -255,6 +262,7 @@ iterativeContainerDecoder =
         |> D.required "uuid" Uuid.decoder
         |> D.required "predicate" D.string
         |> D.required "content" containerDecoder
+        |> D.required "isBlock" D.bool
 
 
 iterativeContainerEncode : IterativeContainer -> E.Value
@@ -264,6 +272,7 @@ iterativeContainerEncode container =
         , ( "uuid", Uuid.encode container.uuid )
         , ( "predicate", E.string container.predicate )
         , ( "content", containerEncode container.content )
+        , ( "isBlock", E.bool container.isBlock )
         ]
 
 
@@ -275,6 +284,7 @@ type alias ContentComponent =
     { uuid : Uuid
     , componentType : ContentComponentType
     , content : ContentComponentContent
+    , isBlock : Bool
     }
 
 
@@ -294,6 +304,7 @@ contentComponentDecoder =
         |> D.required "uuid" Uuid.decoder
         |> D.required "componentType" contentComponentTypeDecoder
         |> D.required "content" contentComponentContentDecoder
+        |> D.required "isBlock" D.bool
 
 
 contentComponentTypeDecoder : Decoder ContentComponentType
@@ -339,6 +350,7 @@ contentComponentEncode component =
         , ( "uuid", Uuid.encode component.uuid )
         , ( "componentType", contentComponentTypeEncode component.componentType )
         , ( "content", contentComponentContentEncode component.content )
+        , ( "isBlock", E.bool component.isBlock )
         ]
 
 

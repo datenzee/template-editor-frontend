@@ -4,8 +4,8 @@ import Bootstrap.Button as Button
 import Bootstrap.Dropdown as Dropdown
 import Dict exposing (Dict)
 import Html exposing (Html, a, div, form, hr, i, input, label, pre, text, textarea)
-import Html.Attributes exposing (class, readonly, rows, style, type_, value)
-import Html.Events exposing (onClick, onInput)
+import Html.Attributes exposing (checked, class, readonly, rows, style, type_, value)
+import Html.Events exposing (onCheck, onClick, onInput)
 import Html.Extra exposing (emptyNode)
 import Maybe.Extra as Maybe
 import Random exposing (Seed)
@@ -38,6 +38,7 @@ type Msg
     | AddContainer Uuid
     | AddIterativeContainer Uuid
     | AddContentComponent Uuid
+    | UpdateIsBlock Uuid Bool
     | UpdateIterativeContainerPredicate Uuid String
     | UpdateContentComponentType Uuid ContentComponentType
     | UpdateContentComponentContent Uuid ContentComponentContent
@@ -88,6 +89,7 @@ update appState msg model =
                     ContainerComponent
                         { uuid = uuid
                         , contains = []
+                        , isBlock = False
                         }
             in
             ( newSeed, addComponent parentUuid container )
@@ -107,7 +109,9 @@ update appState msg model =
                         , content =
                             { uuid = uuid2
                             , contains = []
+                            , isBlock = False
                             }
+                        , isBlock = False
                         }
             in
             ( newSeed2, addComponent parentUuid iterativeContainer )
@@ -122,9 +126,19 @@ update appState msg model =
                         { uuid = uuid
                         , componentType = HeadingContentComponentType
                         , content = ContentComponentPredicate ""
+                        , isBlock = False
                         }
             in
             ( newSeed, addComponent parentUuid contentComponent )
+
+        UpdateIsBlock uuid isBlock ->
+            let
+                app =
+                    model.app
+            in
+            ( appState.seed
+            , { model | app = { app | rootComponent = updateIsBlock isBlock uuid app.rootComponent } }
+            )
 
         UpdateIterativeContainerPredicate uuid predicate ->
             ( appState.seed
@@ -197,6 +211,39 @@ update appState msg model =
 
         ExpandAll ->
             ( appState.seed, { model | collapsedComponents = Set.empty } )
+
+
+updateIsBlock : Bool -> Uuid -> Component -> Component
+updateIsBlock isBlock uuid component =
+    case component of
+        ContainerComponent container ->
+            if container.uuid == uuid then
+                ContainerComponent { container | isBlock = isBlock }
+
+            else
+                ContainerComponent { container | contains = List.map (updateIsBlock isBlock uuid) container.contains }
+
+        IterativeContainerComponent iterativeContainer ->
+            if iterativeContainer.uuid == uuid then
+                IterativeContainerComponent { iterativeContainer | isBlock = isBlock }
+
+            else
+                let
+                    container =
+                        iterativeContainer.content
+                in
+                if container.uuid == uuid then
+                    IterativeContainerComponent { iterativeContainer | content = { container | isBlock = isBlock } }
+
+                else
+                    IterativeContainerComponent { iterativeContainer | content = { container | contains = List.map (updateIsBlock isBlock uuid) container.contains } }
+
+        ContentComponentComponent contentComponent ->
+            if contentComponent.uuid == uuid then
+                ContentComponentComponent { contentComponent | isBlock = isBlock }
+
+            else
+                ContentComponentComponent contentComponent
 
 
 mapContainer : (Container -> Container) -> Component -> Component
@@ -340,9 +387,9 @@ viewApp model =
                 _ ->
                     viewComponent model model.app.rootComponent
     in
-    viewCard { icon = "far fa-window-maximize", label = "App", uuid = Uuid.nil, controls = False }
-        model
-        [ rootContainer ]
+    --viewCard { icon = "far fa-window-maximize", label = "App", uuid = Uuid.nil, controls = False }
+    --    model
+    rootContainer
 
 
 viewComponent : Model -> Component -> Html Msg
@@ -352,7 +399,7 @@ viewComponent model component =
             viewContainer model True container
 
         IterativeContainerComponent iterativeContainer ->
-            viewCard { icon = "fas fa-sync-alt", label = "IterativeContainer", uuid = iterativeContainer.uuid, controls = True }
+            viewCard { icon = "fas fa-sync-alt", label = "IterativeContainer", uuid = iterativeContainer.uuid, controls = True, isBlock = iterativeContainer.isBlock }
                 model
                 [ div [ class "form-group row" ]
                     [ label
@@ -458,7 +505,7 @@ viewComponent model component =
                         , items = List.map contentDropdownItem [ ContentComponentPredicate, ContentComponentText ]
                         }
             in
-            viewCardExtra { component = componentTitleDropdown, uuid = contentComponent.uuid, controls = True }
+            viewCardExtra { component = componentTitleDropdown, uuid = contentComponent.uuid, controls = True, isBlock = contentComponent.isBlock }
                 model
                 [ div [ class "form-group row" ]
                     [ label
@@ -509,15 +556,8 @@ viewContainer model controls container =
                     , dropdownItem "far fa-file-alt" "Content" (AddContentComponent container.uuid)
                     ]
                 }
-
-        --wrapper =
-        --    if contentOnly then
-        --        div []
-        --
-        --    else
-        --        viewCard { icon = "far fa-square", label = "Container", uuid = container.uuid, controls = controls }
     in
-    viewCard { icon = "far fa-square", label = "Container", uuid = container.uuid, controls = controls }
+    viewCard { icon = "far fa-square", label = "Container", uuid = container.uuid, controls = controls, isBlock = container.isBlock }
         model
         (children ++ [ dropdown ])
 
@@ -527,11 +567,12 @@ type alias ViewCardConfig =
     , label : String
     , uuid : Uuid
     , controls : Bool
+    , isBlock : Bool
     }
 
 
 viewCard : ViewCardConfig -> Model -> List (Html Msg) -> Html Msg
-viewCard { icon, label, uuid, controls } =
+viewCard { icon, label, uuid, controls, isBlock } =
     viewCardExtra
         { component =
             div []
@@ -540,6 +581,7 @@ viewCard { icon, label, uuid, controls } =
                 ]
         , uuid = uuid
         , controls = controls
+        , isBlock = isBlock
         }
 
 
@@ -547,11 +589,12 @@ type alias ViewCardExtraConfig =
     { component : Html Msg
     , uuid : Uuid
     , controls : Bool
+    , isBlock : Bool
     }
 
 
 viewCardExtra : ViewCardExtraConfig -> Model -> List (Html Msg) -> Html Msg
-viewCardExtra { component, uuid, controls } model content =
+viewCardExtra { component, uuid, controls, isBlock } model content =
     let
         isCollapsed =
             Set.member (Uuid.toString uuid) model.collapsedComponents
@@ -570,10 +613,10 @@ viewCardExtra { component, uuid, controls } model content =
 
         collapseButton =
             if isCollapsed then
-                a [ onClick (ExpandComponent uuid), class "text-primary me-2" ] [ fas "fa-chevron-right fa-fw" [] ]
+                a [ onClick (ExpandComponent uuid), class "text-primary me-3" ] [ fas "fa-chevron-right fa-fw" [] ]
 
             else
-                a [ onClick (CollapseComponent uuid), class "text-primary me-2" ] [ fas "fa-chevron-down fa-fw" [] ]
+                a [ onClick (CollapseComponent uuid), class "text-primary me-3" ] [ fas "fa-chevron-down fa-fw" [] ]
 
         controlButtons =
             if controls then
@@ -586,6 +629,12 @@ viewCardExtra { component, uuid, controls } model content =
             else
                 emptyNode
 
+        blockCheckbox =
+            label [ class "ms-3 cursor-pointer" ]
+                [ input [ type_ "checkbox", checked isBlock, onCheck (UpdateIsBlock uuid), class "me-1" ] []
+                , text "Block"
+                ]
+
         body =
             if Set.member (Uuid.toString uuid) model.collapsedComponents then
                 emptyNode
@@ -595,7 +644,7 @@ viewCardExtra { component, uuid, controls } model content =
     in
     div [ class "card" ]
         [ div [ class "card-header d-flex justify-content-between" ]
-            [ div [ class "d-flex" ] [ collapseButton, component ]
+            [ div [ class "d-flex align-items-end" ] [ collapseButton, component, blockCheckbox ]
             , controlButtons
             ]
         , body

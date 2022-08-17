@@ -34,6 +34,7 @@ type Object
     = Ref String
     | Literal String
     | IRI String
+    | Boolean Bool
 
 
 createNode : String -> Node
@@ -56,6 +57,11 @@ addPredicateIRI predicate object =
 addPredicateLiteral : String -> String -> Node -> Node
 addPredicateLiteral predicate object =
     addPredicateObject predicate (Literal object)
+
+
+addPredicateBoolean : String -> Bool -> Node -> Node
+addPredicateBoolean predicate object =
+    addPredicateObject predicate (Boolean object)
 
 
 addPredicateObject : String -> Object -> Node -> Node
@@ -104,3 +110,10 @@ objectToString object =
 
         IRI iri ->
             "<" ++ iri ++ ">"
+
+        Boolean value ->
+            if value then
+                "true"
+
+            else
+                "false"
