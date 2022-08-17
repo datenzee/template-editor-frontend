@@ -9,6 +9,7 @@ import Html.Events exposing (onClick, onInput)
 import Html.Extra exposing (emptyNode)
 import Maybe.Extra as Maybe
 import Random exposing (Seed)
+import Set exposing (Set)
 import TemplateEditor.Common.FontAwesome exposing (fa, far, fas)
 import TemplateEditor.Common.Setters exposing (setComponentType, setContent, setPredicate)
 import TemplateEditor.Data.AppState exposing (AppState)
@@ -20,6 +21,7 @@ import Uuid exposing (Uuid)
 type alias Model =
     { app : App
     , dropdownStates : Dict String Dropdown.State
+    , collapsedComponents : Set String
     }
 
 
@@ -27,6 +29,7 @@ init : App -> Model
 init app =
     { app = app
     , dropdownStates = Dict.empty
+    , collapsedComponents = Set.empty
     }
 
 
@@ -41,6 +44,10 @@ type Msg
     | MoveComponentUp Uuid
     | MoveComponentDown Uuid
     | DeleteComponent Uuid
+    | CollapseComponent Uuid
+    | ExpandComponent Uuid
+    | CollapseAll
+    | ExpandAll
 
 
 update : AppState -> Msg -> Model -> ( Seed, Model )
@@ -167,6 +174,30 @@ update appState msg model =
             in
             ( appState.seed, updateRootComponent rootComponent )
 
+        CollapseComponent uuid ->
+            ( appState.seed, { model | collapsedComponents = Set.insert (Uuid.toString uuid) model.collapsedComponents } )
+
+        ExpandComponent uuid ->
+            ( appState.seed, { model | collapsedComponents = Set.remove (Uuid.toString uuid) model.collapsedComponents } )
+
+        CollapseAll ->
+            let
+                getUuids component =
+                    case component of
+                        ContainerComponent container ->
+                            container.uuid :: List.concatMap getUuids container.contains
+
+                        IterativeContainerComponent iterativeContainer ->
+                            iterativeContainer.uuid :: getUuids (ContainerComponent iterativeContainer.content)
+
+                        ContentComponentComponent { uuid } ->
+                            [ uuid ]
+            in
+            ( appState.seed, { model | collapsedComponents = Set.fromList <| List.map Uuid.toString <| getUuids model.app.rootComponent } )
+
+        ExpandAll ->
+            ( appState.seed, { model | collapsedComponents = Set.empty } )
+
 
 mapContainer : (Container -> Container) -> Component -> Component
 mapContainer map component =
@@ -290,7 +321,11 @@ subscriptions model =
 view : Model -> Html Msg
 view model =
     div [ class "app-canvas" ]
-        [ viewApp model
+        [ div [ class "mb-3" ]
+            [ a [ onClick ExpandAll, class "text-primary me-2" ] [ text "Expand all" ]
+            , a [ onClick CollapseAll, class "text-primary" ] [ text "Collapse all" ]
+            ]
+        , viewApp model
         ]
 
 
@@ -300,12 +335,13 @@ viewApp model =
         rootContainer =
             case model.app.rootComponent of
                 ContainerComponent container ->
-                    viewContainer model True container
+                    viewContainer model False container
 
                 _ ->
                     viewComponent model model.app.rootComponent
     in
     viewCard { icon = "far fa-window-maximize", label = "App", uuid = Uuid.nil, controls = False }
+        model
         [ rootContainer ]
 
 
@@ -313,10 +349,11 @@ viewComponent : Model -> Component -> Html Msg
 viewComponent model component =
     case component of
         ContainerComponent container ->
-            viewContainer model False container
+            viewContainer model True container
 
         IterativeContainerComponent iterativeContainer ->
             viewCard { icon = "fas fa-sync-alt", label = "IterativeContainer", uuid = iterativeContainer.uuid, controls = True }
+                model
                 [ div [ class "form-group row" ]
                     [ label
                         [ class "col-md-2 col-form-label"
@@ -333,7 +370,7 @@ viewComponent model component =
                         ]
                     ]
                 , hr [] []
-                , viewContainer model True iterativeContainer.content
+                , viewContainer model False iterativeContainer.content
                 ]
 
         ContentComponentComponent contentComponent ->
@@ -422,6 +459,7 @@ viewComponent model component =
                         }
             in
             viewCardExtra { component = componentTitleDropdown, uuid = contentComponent.uuid, controls = True }
+                model
                 [ div [ class "form-group row" ]
                     [ label
                         [ class "col-md-2 col-form-label"
@@ -441,7 +479,7 @@ viewComponent model component =
 
 
 viewContainer : Model -> Bool -> Container -> Html Msg
-viewContainer model contentOnly container =
+viewContainer model controls container =
     let
         dropdownId =
             "container-" ++ Uuid.toString container.uuid
@@ -472,14 +510,16 @@ viewContainer model contentOnly container =
                     ]
                 }
 
-        wrapper =
-            if contentOnly then
-                div []
-
-            else
-                viewCard { icon = "far fa-square", label = "Container", uuid = container.uuid, controls = True }
+        --wrapper =
+        --    if contentOnly then
+        --        div []
+        --
+        --    else
+        --        viewCard { icon = "far fa-square", label = "Container", uuid = container.uuid, controls = controls }
     in
-    wrapper (children ++ [ dropdown ])
+    viewCard { icon = "far fa-square", label = "Container", uuid = container.uuid, controls = controls }
+        model
+        (children ++ [ dropdown ])
 
 
 type alias ViewCardConfig =
@@ -490,7 +530,7 @@ type alias ViewCardConfig =
     }
 
 
-viewCard : ViewCardConfig -> List (Html Msg) -> Html Msg
+viewCard : ViewCardConfig -> Model -> List (Html Msg) -> Html Msg
 viewCard { icon, label, uuid, controls } =
     viewCardExtra
         { component =
@@ -510,9 +550,12 @@ type alias ViewCardExtraConfig =
     }
 
 
-viewCardExtra : ViewCardExtraConfig -> List (Html Msg) -> Html Msg
-viewCardExtra { component, uuid, controls } content =
+viewCardExtra : ViewCardExtraConfig -> Model -> List (Html Msg) -> Html Msg
+viewCardExtra { component, uuid, controls } model content =
     let
+        isCollapsed =
+            Set.member (Uuid.toString uuid) model.collapsedComponents
+
         moveUpButton =
             a [ onClick (MoveComponentUp uuid), class "text-primary me-3" ]
                 [ fas "fa-arrow-up" [] ]
@@ -525,6 +568,13 @@ viewCardExtra { component, uuid, controls } content =
             a [ onClick (DeleteComponent uuid), class "text-danger" ]
                 [ fas "fa-trash" [] ]
 
+        collapseButton =
+            if isCollapsed then
+                a [ onClick (ExpandComponent uuid), class "text-primary me-2" ] [ fas "fa-chevron-right fa-fw" [] ]
+
+            else
+                a [ onClick (CollapseComponent uuid), class "text-primary me-2" ] [ fas "fa-chevron-down fa-fw" [] ]
+
         controlButtons =
             if controls then
                 div []
@@ -535,11 +585,18 @@ viewCardExtra { component, uuid, controls } content =
 
             else
                 emptyNode
+
+        body =
+            if Set.member (Uuid.toString uuid) model.collapsedComponents then
+                emptyNode
+
+            else
+                div [ class "card-body" ] content
     in
     div [ class "card" ]
         [ div [ class "card-header d-flex justify-content-between" ]
-            [ component
+            [ div [ class "d-flex" ] [ collapseButton, component ]
             , controlButtons
             ]
-        , div [ class "card-body" ] content
+        , body
         ]
