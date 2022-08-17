@@ -327,12 +327,12 @@ view model =
                     , publishingResult
                     , div []
                         [ button
-                            [ class "btn btn-outline-primary mr-2"
+                            [ class "btn btn-outline-primary me-2"
                             , onClick CopyToClipboard
                             ]
                             [ text "Copy RDF" ]
                         , button
-                            [ class "btn btn-outline-primary mr-2"
+                            [ class "btn btn-outline-primary me-2"
                             , onClick Publish
                             , disabled (ActionResult.isLoading model.publishing)
                             ]

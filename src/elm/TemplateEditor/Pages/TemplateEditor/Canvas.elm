@@ -362,7 +362,7 @@ viewComponent model component =
                             getComponentIconAndName componentType
                     in
                     Dropdown.buttonItem [ onClick (UpdateContentComponentType contentComponent.uuid componentType) ]
-                        [ fa icon [ class "mr-2 text-muted" ], text label ]
+                        [ fa icon [ class "me-2 text-muted" ], text label ]
 
                 componentTitleDropdown =
                     Dropdown.dropdown typeDropdownState
@@ -370,7 +370,7 @@ viewComponent model component =
                         , toggleMsg = DropdownMsg typeDropdownId
                         , toggleButton =
                             Dropdown.toggle [ Button.roleLink ]
-                                [ fa componentIcon [ class "mr-1" ]
+                                [ fa componentIcon [ class "me-1" ]
                                 , text componentName
                                 ]
                         , items = List.map typeDropdownItem [ HeadingContentComponentType, ParagraphContentComponentType ]
@@ -454,7 +454,7 @@ viewContainer model contentOnly container =
                 Dict.get dropdownId model.dropdownStates
 
         dropdownItem icon label msg =
-            Dropdown.buttonItem [ onClick msg ] [ fa icon [ class "mr-2 text-muted" ], text label ]
+            Dropdown.buttonItem [ onClick msg ] [ fa icon [ class "me-2 text-muted" ], text label ]
 
         dropdown =
             Dropdown.dropdown dropdownState
@@ -462,7 +462,7 @@ viewContainer model contentOnly container =
                 , toggleMsg = DropdownMsg dropdownId
                 , toggleButton =
                     Dropdown.toggle [ Button.outlineSecondary, Button.small ]
-                        [ fas "fa-plus" [ class "mr-1" ]
+                        [ fas "fa-plus" [ class "me-1" ]
                         , text "Add"
                         ]
                 , items =
@@ -495,7 +495,7 @@ viewCard { icon, label, uuid, controls } =
     viewCardExtra
         { component =
             div []
-                [ fa icon [ class "mr-1" ]
+                [ fa icon [ class "me-1" ]
                 , text label
                 ]
         , uuid = uuid
@@ -514,11 +514,11 @@ viewCardExtra : ViewCardExtraConfig -> List (Html Msg) -> Html Msg
 viewCardExtra { component, uuid, controls } content =
     let
         moveUpButton =
-            a [ onClick (MoveComponentUp uuid), class "text-primary mr-3" ]
+            a [ onClick (MoveComponentUp uuid), class "text-primary me-3" ]
                 [ fas "fa-arrow-up" [] ]
 
         moveDownButton =
-            a [ onClick (MoveComponentDown uuid), class "text-primary mr-3" ]
+            a [ onClick (MoveComponentDown uuid), class "text-primary me-3" ]
                 [ fas "fa-arrow-down" [] ]
 
         deleteButton =

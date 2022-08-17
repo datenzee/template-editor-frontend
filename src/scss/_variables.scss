@@ -1,5 +1,12 @@
+@import '~bootstrap/scss/functions';
+
 @import "customizations/variables";
 @import "customizations/variables-app";
 
 $font-size-base: 0.875rem !default;
 $primary: #653fb7 !default;
+$cyan: #17a2b8 !default;
+
+$min-contrast-ratio: 3 !default;
+
+@import '~bootstrap/scss/variables';

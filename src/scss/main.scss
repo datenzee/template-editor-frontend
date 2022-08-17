@@ -1,5 +1,5 @@
-@import "variables";
-@import "~bootstrap/scss/bootstrap";
+@import 'variables';
+@import '~bootstrap/scss/bootstrap';
 
 $fa-font-path: '~@fortawesome/fontawesome-free/webfonts' !default;
 @import '~@fortawesome/fontawesome-free/scss/fontawesome';
@@ -34,10 +34,10 @@ h1 {
 
   a {
     color: $white;
+    text-decoration: none;
 
     &:hover {
       color: $white;
-      text-decoration: none;
     }
   }
 }
@@ -114,7 +114,7 @@ h1 {
 
 $thickness : 5px;
 $duration : 2500;
-$delay : $duration/6;
+$delay : $duration * 0.16;
 
 @mixin polka($size, $dot, $base, $accent){
   background: $base;
@@ -242,7 +242,7 @@ $delay : $duration/6;
       content:'';
       position: absolute;
       bottom: 31px;
-      left: 0px;
+      left: 0;
       width: 100%;
       height: $thickness;
       background-color: $primary;
@@ -299,7 +299,7 @@ $delay : $duration/6;
     @include polka(10px, 30%, #fff, $primary);
     top: 200%;
     left: 5%;
-    animation: move #{$duration/10}ms linear infinite;
+    animation: move #{$duration * 0.1}ms linear infinite;
   }
 
   &:after {
