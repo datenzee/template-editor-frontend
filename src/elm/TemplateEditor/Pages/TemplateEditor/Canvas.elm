@@ -427,8 +427,8 @@ viewComponent model component =
                         HeadingContentComponentType ->
                             ( "fas fa-heading", "Heading" )
 
-                        ParagraphContentComponentType ->
-                            ( "fas fa-paragraph", "Paragraph" )
+                        TextContentComponentType ->
+                            ( "fas fa-paragraph", "Text" )
 
                 ( componentIcon, componentName ) =
                     getComponentIconAndName contentComponent.componentType
@@ -457,7 +457,7 @@ viewComponent model component =
                                 [ fa componentIcon [ class "me-1" ]
                                 , text componentName
                                 ]
-                        , items = List.map typeDropdownItem [ HeadingContentComponentType, ParagraphContentComponentType ]
+                        , items = List.map typeDropdownItem [ HeadingContentComponentType, TextContentComponentType ]
                         }
 
                 ( contentValue, toContent ) =

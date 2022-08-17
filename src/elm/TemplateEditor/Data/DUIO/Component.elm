@@ -98,8 +98,8 @@ rdfIdentifier component =
                 HeadingContentComponentType ->
                     toIdentifier "HeadingComponent" contentComponent.uuid
 
-                ParagraphContentComponentType ->
-                    toIdentifier "ParagraphComponent" contentComponent.uuid
+                TextContentComponentType ->
+                    toIdentifier "TextComponent" contentComponent.uuid
 
 
 rootContainerIdentifier : String
@@ -188,8 +188,8 @@ toRdfOpts isRootContainer component =
                         HeadingContentComponentType ->
                             "HeadingComponent"
 
-                        ParagraphContentComponentType ->
-                            "ParagraphComponent"
+                        TextContentComponentType ->
+                            "TextComponent"
 
                 ( contentProperty, contentValue, contentRdf ) =
                     case contentComponent.content of
@@ -290,7 +290,7 @@ type alias ContentComponent =
 
 type ContentComponentType
     = HeadingContentComponentType
-    | ParagraphContentComponentType
+    | TextContentComponentType
 
 
 type ContentComponentContent
@@ -315,8 +315,8 @@ contentComponentTypeDecoder =
                 "HeadingComponent" ->
                     D.succeed HeadingContentComponentType
 
-                "ParagraphComponent" ->
-                    D.succeed ParagraphContentComponentType
+                "TextComponent" ->
+                    D.succeed TextContentComponentType
 
                 _ ->
                     D.fail <| "Unknown plain text component type " ++ componentType
@@ -362,9 +362,9 @@ contentComponentTypeEncode contentComponentType =
                 [ ( "type", E.string "HeadingComponent" )
                 ]
 
-        ParagraphContentComponentType ->
+        TextContentComponentType ->
             E.object
-                [ ( "type", E.string "ParagraphComponent" )
+                [ ( "type", E.string "TextComponent" )
                 ]
 
 
