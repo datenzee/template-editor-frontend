@@ -6,6 +6,7 @@ module TemplateEditor.Common.Setters exposing
     , setPredicate
     , setTemplateEditor
     , setTemplateEditors
+    , setUrlLabel
     , setValue
     )
 
@@ -43,6 +44,11 @@ setTemplateEditor value data =
 setTemplateEditors : v -> { a | templateEditors : v } -> { a | templateEditors : v }
 setTemplateEditors value data =
     { data | templateEditors = value }
+
+
+setUrlLabel : v -> { a | urlLabel : v } -> { a | urlLabel : v }
+setUrlLabel value data =
+    { data | urlLabel = value }
 
 
 setValue : v -> { a | value : v } -> { a | value : v }

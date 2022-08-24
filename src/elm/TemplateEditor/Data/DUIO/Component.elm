@@ -7,6 +7,7 @@ module TemplateEditor.Data.DUIO.Component exposing
     , ContentComponentType(..)
     , IterativeContainer
     , decoder
+    , defaultContentComponentContent
     , encode
     , getUuid
     , rdfIdentifier
@@ -120,6 +121,21 @@ rdfIdentifier component =
 
                 EmphasisContentComponentType ->
                     toIdentifier "EmphasisComponent" contentComponent.uuid
+
+                URLContentComponentType ->
+                    toIdentifier "URLComponent" contentComponent.uuid
+
+                EmailContentComponentType ->
+                    toIdentifier "EmailComponent" contentComponent.uuid
+
+                DateContentComponentType ->
+                    toIdentifier "DateComponent" contentComponent.uuid
+
+                DateTimeContentComponentType ->
+                    toIdentifier "DateTimeComponent" contentComponent.uuid
+
+                TimeContentComponentType ->
+                    toIdentifier "TimeComponent" contentComponent.uuid
 
 
 rootContainerIdentifier : String
@@ -247,6 +263,21 @@ toRdfOpts isRootContainer component =
                         EmphasisContentComponentType ->
                             "EmphasisComponent"
 
+                        URLContentComponentType ->
+                            "URLComponent"
+
+                        EmailContentComponentType ->
+                            "EmailComponent"
+
+                        DateContentComponentType ->
+                            "DateComponent"
+
+                        DateTimeContentComponentType ->
+                            "DateTimeComponent"
+
+                        TimeContentComponentType ->
+                            "TimeComponent"
+
                 ( contentProperty, contentValue, contentRdf ) =
                     case contentComponent.content of
                         ContentComponentPredicate predicate ->
@@ -264,15 +295,44 @@ toRdfOpts isRootContainer component =
                             in
                             ( duio "contentComponentContent", Rdf.Ref (base textContentIdentifier), textContentRdf )
 
+                ( urlLabelProperty, urlLabelValue, urlLabelRdf ) =
+                    case ( contentComponent.componentType, contentComponent.urlLabel ) of
+                        ( URLContentComponentType, ContentComponentPredicate predicate ) ->
+                            ( Just (duio "urlComponentLabelPredicate"), Just (Rdf.IRI predicate), "" )
+
+                        ( URLContentComponentType, ContentComponentText urlLabelText ) ->
+                            let
+                                urlLabelIdentifier =
+                                    identifier ++ "_UrlLabelTextContent"
+
+                                urlLabelTextContentRdf =
+                                    Rdf.createNode (base urlLabelIdentifier)
+                                        |> Rdf.addPredicateLiteral (duio "textContentValue") urlLabelText
+                                        |> Rdf.nodeToString
+                            in
+                            ( Just (duio "urlComponentLabelContent"), Just (Rdf.Ref (base urlLabelIdentifier)), urlLabelTextContentRdf )
+
+                        _ ->
+                            ( Nothing, Nothing, "" )
+
+                rdfAddMaybePredicateObject mbContentProperty mbContentValue rdf =
+                    case ( mbContentProperty, mbContentValue ) of
+                        ( Just prop, Just val ) ->
+                            Rdf.addPredicateObject prop val rdf
+
+                        _ ->
+                            rdf
+
                 contentComponentRdf =
                     Rdf.createNode (base identifier)
                         |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
                         |> Rdf.addPredicate (rdf "type") (duio componentName)
                         |> Rdf.addPredicateBoolean (duio "componentIsBlock") contentComponent.isBlock
                         |> Rdf.addPredicateObject contentProperty contentValue
+                        |> rdfAddMaybePredicateObject urlLabelProperty urlLabelValue
                         |> Rdf.nodeToString
             in
-            contentComponentRdf ++ contentRdf
+            contentComponentRdf ++ contentRdf ++ urlLabelRdf
 
 
 type alias Container =
@@ -378,6 +438,7 @@ type alias ContentComponent =
     { uuid : Uuid
     , componentType : ContentComponentType
     , content : ContentComponentContent
+    , urlLabel : ContentComponentContent
     , isBlock : Bool
     }
 
@@ -387,11 +448,21 @@ type ContentComponentType
     | TextContentComponentType
     | StrongContentComponentType
     | EmphasisContentComponentType
+    | URLContentComponentType
+    | EmailContentComponentType
+    | DateContentComponentType
+    | DateTimeContentComponentType
+    | TimeContentComponentType
 
 
 type ContentComponentContent
     = ContentComponentPredicate String
     | ContentComponentText String
+
+
+defaultContentComponentContent : ContentComponentContent
+defaultContentComponentContent =
+    ContentComponentPredicate ""
 
 
 contentComponentDecoder : Decoder ContentComponent
@@ -400,6 +471,7 @@ contentComponentDecoder =
         |> D.required "uuid" Uuid.decoder
         |> D.required "componentType" contentComponentTypeDecoder
         |> D.required "content" contentComponentContentDecoder
+        |> D.optional "urlLabel" contentComponentContentDecoder defaultContentComponentContent
         |> D.required "isBlock" D.bool
 
 
@@ -419,6 +491,21 @@ contentComponentTypeDecoder =
 
                 "EmphasisContentComponentType" ->
                     D.succeed EmphasisContentComponentType
+
+                "URLContentComponentType" ->
+                    D.succeed URLContentComponentType
+
+                "EmailContentComponentType" ->
+                    D.succeed EmailContentComponentType
+
+                "DateContentComponentType" ->
+                    D.succeed DateContentComponentType
+
+                "DateTimeContentComponentType" ->
+                    D.succeed DateTimeContentComponentType
+
+                "TimeContentComponentType" ->
+                    D.succeed TimeContentComponentType
 
                 _ ->
                     D.fail <| "Unknown plain text component type " ++ componentType
@@ -452,6 +539,7 @@ contentComponentEncode component =
         , ( "uuid", Uuid.encode component.uuid )
         , ( "componentType", contentComponentTypeEncode component.componentType )
         , ( "content", contentComponentContentEncode component.content )
+        , ( "urlLabel", contentComponentContentEncode component.urlLabel )
         , ( "isBlock", E.bool component.isBlock )
         ]
 
@@ -477,6 +565,31 @@ contentComponentTypeEncode contentComponentType =
         EmphasisContentComponentType ->
             E.object
                 [ ( "type", E.string "EmphasisContentComponentType" )
+                ]
+
+        URLContentComponentType ->
+            E.object
+                [ ( "type", E.string "URLContentComponentType" )
+                ]
+
+        EmailContentComponentType ->
+            E.object
+                [ ( "type", E.string "EmailContentComponentType" )
+                ]
+
+        DateContentComponentType ->
+            E.object
+                [ ( "type", E.string "DateContentComponentType" )
+                ]
+
+        DateTimeContentComponentType ->
+            E.object
+                [ ( "type", E.string "DateTimeContentComponentType" )
+                ]
+
+        TimeContentComponentType ->
+            E.object
+                [ ( "type", E.string "TimeContentComponentType" )
                 ]
 
 

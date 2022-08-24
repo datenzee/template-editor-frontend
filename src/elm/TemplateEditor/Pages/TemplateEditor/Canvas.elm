@@ -11,10 +11,10 @@ import Maybe.Extra as Maybe
 import Random exposing (Seed)
 import Set exposing (Set)
 import TemplateEditor.Common.FontAwesome exposing (fa, far, fas)
-import TemplateEditor.Common.Setters exposing (setComponentType, setContent, setPredicate, setValue)
+import TemplateEditor.Common.Setters exposing (setComponentType, setContent, setPredicate, setUrlLabel, setValue)
 import TemplateEditor.Data.AppState exposing (AppState)
 import TemplateEditor.Data.DUIO.App as App exposing (App)
-import TemplateEditor.Data.DUIO.Component as Component exposing (Component(..), Condition, Container, ContentComponent, ContentComponentContent(..), ContentComponentType(..), IterativeContainer)
+import TemplateEditor.Data.DUIO.Component as Component exposing (Component(..), Condition, Container, ContentComponent, ContentComponentContent(..), ContentComponentType(..), IterativeContainer, defaultContentComponentContent)
 import TemplateEditor.Ports as Ports
 import Uuid exposing (Uuid)
 
@@ -52,6 +52,7 @@ type Msg
     | UpdateConditionValue Uuid String
     | UpdateContentComponentType Uuid ContentComponentType
     | UpdateContentComponentContent Uuid ContentComponentContent
+    | UpdateContentComponentUrlLabel Uuid ContentComponentContent
     | MoveComponentUp Uuid
     | MoveComponentDown Uuid
     | DeleteComponent Uuid
@@ -182,7 +183,8 @@ update appState msg model =
                     ContentComponentComponent
                         { uuid = uuid
                         , componentType = HeadingContentComponentType
-                        , content = ContentComponentPredicate ""
+                        , content = defaultContentComponentContent
+                        , urlLabel = defaultContentComponentContent
                         , isBlock = False
                         }
             in
@@ -209,6 +211,9 @@ update appState msg model =
 
         UpdateContentComponentContent uuid content ->
             wrap <| updateComponent uuid mapContentComponent (setContent content)
+
+        UpdateContentComponentUrlLabel uuid content ->
+            wrap <| updateComponent uuid mapContentComponent (setUrlLabel content)
 
         MoveComponentUp uuid ->
             let
@@ -670,6 +675,21 @@ viewComponent model component =
                         EmphasisContentComponentType ->
                             ( "fas fa-italic", "Emphasis" )
 
+                        URLContentComponentType ->
+                            ( "fas fa-link", "URL" )
+
+                        EmailContentComponentType ->
+                            ( "fas fa-at", "Email" )
+
+                        DateContentComponentType ->
+                            ( "fas fa-calendar", "Date" )
+
+                        DateTimeContentComponentType ->
+                            ( "fas fa-calendar-day", "DateTime" )
+
+                        TimeContentComponentType ->
+                            ( "fas fa-clock", "Time" )
+
                 ( componentIcon, componentName ) =
                     getComponentIconAndName contentComponent.componentType
 
@@ -703,6 +723,11 @@ viewComponent model component =
                                 , TextContentComponentType
                                 , StrongContentComponentType
                                 , EmphasisContentComponentType
+                                , URLContentComponentType
+                                , EmailContentComponentType
+                                , DateContentComponentType
+                                , DateTimeContentComponentType
+                                , TimeContentComponentType
                                 ]
                         }
 
@@ -750,6 +775,73 @@ viewComponent model component =
                                 [ text (getContentLabel contentComponent.content) ]
                         , items = List.map contentDropdownItem [ ContentComponentPredicate, ContentComponentText ]
                         }
+
+                urlLabelInput =
+                    if contentComponent.componentType == URLContentComponentType then
+                        let
+                            dropdownId =
+                                "url-label-content-" ++ Uuid.toString contentComponent.uuid
+
+                            dropdownState =
+                                Maybe.withDefault Dropdown.initialState <|
+                                    Dict.get dropdownId model.dropdownStates
+
+                            getDropdownLabel componentContent =
+                                case componentContent of
+                                    ContentComponentPredicate _ ->
+                                        "Label Predicate"
+
+                                    ContentComponentText _ ->
+                                        "Label Text"
+
+                            dropdownItem content =
+                                let
+                                    newContent =
+                                        content urlLabelValue
+
+                                    label =
+                                        getDropdownLabel newContent
+                                in
+                                Dropdown.buttonItem
+                                    [ onClick (UpdateContentComponentUrlLabel contentComponent.uuid newContent) ]
+                                    [ text label ]
+
+                            ( urlLabelValue, toUrlLabel ) =
+                                case contentComponent.urlLabel of
+                                    ContentComponentPredicate value ->
+                                        ( value, ContentComponentPredicate )
+
+                                    ContentComponentText value ->
+                                        ( value, ContentComponentText )
+
+                            urlLabelInputDropdown =
+                                Dropdown.dropdown dropdownState
+                                    { options = [ Dropdown.attrs [ class "dropdown-text" ] ]
+                                    , toggleMsg = DropdownMsg dropdownId
+                                    , toggleButton =
+                                        Dropdown.toggle [ Button.roleLink ]
+                                            [ text (getDropdownLabel contentComponent.urlLabel) ]
+                                    , items = List.map dropdownItem [ ContentComponentPredicate, ContentComponentText ]
+                                    }
+                        in
+                        div [ class "form-group row mt-2" ]
+                            [ label
+                                [ class "col-md-2 col-form-label"
+                                ]
+                                [ urlLabelInputDropdown ]
+                            , div [ class "col-md-10" ]
+                                [ input
+                                    [ type_ "text"
+                                    , class "form-control"
+                                    , onInput (UpdateContentComponentUrlLabel contentComponent.uuid << toUrlLabel)
+                                    , value urlLabelValue
+                                    ]
+                                    []
+                                ]
+                            ]
+
+                    else
+                        emptyNode
             in
             viewCardExtra { component = componentTitleDropdown, uuid = contentComponent.uuid, controls = True, copyUuid = False, isBlock = contentComponent.isBlock }
                 model
@@ -768,6 +860,7 @@ viewComponent model component =
                             []
                         ]
                     ]
+                , urlLabelInput
                 ]
 
 
