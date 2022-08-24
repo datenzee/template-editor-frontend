@@ -11,10 +11,10 @@ import Maybe.Extra as Maybe
 import Random exposing (Seed)
 import Set exposing (Set)
 import TemplateEditor.Common.FontAwesome exposing (fa, far, fas)
-import TemplateEditor.Common.Setters exposing (setComponentType, setContent, setPredicate)
+import TemplateEditor.Common.Setters exposing (setComponentType, setContent, setPredicate, setValue)
 import TemplateEditor.Data.AppState exposing (AppState)
 import TemplateEditor.Data.DUIO.App as App exposing (App)
-import TemplateEditor.Data.DUIO.Component as Component exposing (Component(..), Container, ContentComponent, ContentComponentContent(..), ContentComponentType(..), IterativeContainer)
+import TemplateEditor.Data.DUIO.Component as Component exposing (Component(..), Condition, Container, ContentComponent, ContentComponentContent(..), ContentComponentType(..), IterativeContainer)
 import Uuid exposing (Uuid)
 
 
@@ -37,9 +37,12 @@ type Msg
     = DropdownMsg String Dropdown.State
     | AddContainer Uuid
     | AddIterativeContainer Uuid
+    | AddCondition Uuid
     | AddContentComponent Uuid
     | UpdateIsBlock Uuid Bool
     | UpdateIterativeContainerPredicate Uuid String
+    | UpdateConditionPredicate Uuid String
+    | UpdateConditionValue Uuid String
     | UpdateContentComponentType Uuid ContentComponentType
     | UpdateContentComponentContent Uuid ContentComponentContent
     | MoveComponentUp Uuid
@@ -116,6 +119,37 @@ update appState msg model =
             in
             ( newSeed2, addComponent parentUuid iterativeContainer )
 
+        AddCondition parentUuid ->
+            let
+                ( uuid1, newSeed1 ) =
+                    Random.step Uuid.uuidGenerator appState.seed
+
+                ( uuid2, newSeed2 ) =
+                    Random.step Uuid.uuidGenerator newSeed1
+
+                ( uuid3, newSeed3 ) =
+                    Random.step Uuid.uuidGenerator newSeed2
+
+                condition =
+                    ConditionComponent
+                        { uuid = uuid1
+                        , predicate = ""
+                        , value = ""
+                        , positiveContent =
+                            { uuid = uuid2
+                            , contains = []
+                            , isBlock = False
+                            }
+                        , negativeContent =
+                            { uuid = uuid3
+                            , contains = []
+                            , isBlock = False
+                            }
+                        , isBlock = False
+                        }
+            in
+            ( newSeed3, addComponent parentUuid condition )
+
         AddContentComponent parentUuid ->
             let
                 ( uuid, newSeed ) =
@@ -143,6 +177,16 @@ update appState msg model =
         UpdateIterativeContainerPredicate uuid predicate ->
             ( appState.seed
             , updateComponent uuid mapIterativeContainer (setPredicate predicate)
+            )
+
+        UpdateConditionPredicate uuid predicate ->
+            ( appState.seed
+            , updateComponent uuid mapCondition (setPredicate predicate)
+            )
+
+        UpdateConditionValue uuid predicate ->
+            ( appState.seed
+            , updateComponent uuid mapCondition (setValue predicate)
             )
 
         UpdateContentComponentType uuid type_ ->
@@ -204,6 +248,9 @@ update appState msg model =
                         IterativeContainerComponent iterativeContainer ->
                             iterativeContainer.uuid :: getUuids (ContainerComponent iterativeContainer.content)
 
+                        ConditionComponent condition ->
+                            condition.uuid :: getUuids (ContainerComponent condition.positiveContent) ++ getUuids (ContainerComponent condition.negativeContent)
+
                         ContentComponentComponent { uuid } ->
                             [ uuid ]
             in
@@ -238,6 +285,31 @@ updateIsBlock isBlock uuid component =
                 else
                     IterativeContainerComponent { iterativeContainer | content = { container | contains = List.map (updateIsBlock isBlock uuid) container.contains } }
 
+        ConditionComponent condition ->
+            if condition.uuid == uuid then
+                ConditionComponent { condition | isBlock = isBlock }
+
+            else
+                let
+                    positiveContent =
+                        condition.positiveContent
+
+                    negativeContent =
+                        condition.negativeContent
+                in
+                if positiveContent.uuid == uuid then
+                    ConditionComponent { condition | positiveContent = { positiveContent | isBlock = isBlock } }
+
+                else if negativeContent.uuid == uuid then
+                    ConditionComponent { condition | negativeContent = { negativeContent | isBlock = isBlock } }
+
+                else
+                    ConditionComponent
+                        { condition
+                            | positiveContent = { positiveContent | contains = List.map (updateIsBlock isBlock uuid) positiveContent.contains }
+                            , negativeContent = { negativeContent | contains = List.map (updateIsBlock isBlock uuid) negativeContent.contains }
+                        }
+
         ContentComponentComponent contentComponent ->
             if contentComponent.uuid == uuid then
                 ContentComponentComponent { contentComponent | isBlock = isBlock }
@@ -260,6 +332,13 @@ mapContainer map component =
         IterativeContainerComponent iterativeContainer ->
             IterativeContainerComponent { iterativeContainer | content = mapContainer_ iterativeContainer.content }
 
+        ConditionComponent condition ->
+            ConditionComponent
+                { condition
+                    | positiveContent = mapContainer_ condition.positiveContent
+                    , negativeContent = mapContainer_ condition.negativeContent
+                }
+
         other ->
             other
 
@@ -278,6 +357,39 @@ mapIterativeContainer map component =
             IterativeContainerComponent <|
                 map { iterativeContainer | content = mapContainer_ iterativeContainer.content }
 
+        ConditionComponent condition ->
+            ConditionComponent
+                { condition
+                    | positiveContent = mapContainer_ condition.positiveContent
+                    , negativeContent = mapContainer_ condition.negativeContent
+                }
+
+        other ->
+            other
+
+
+mapCondition : (Condition -> Condition) -> Component -> Component
+mapCondition map component =
+    let
+        mapContainer_ container =
+            { container | contains = List.map (mapCondition map) container.contains }
+    in
+    case component of
+        ContainerComponent container ->
+            ContainerComponent <| mapContainer_ container
+
+        IterativeContainerComponent iterativeContainer ->
+            IterativeContainerComponent <|
+                { iterativeContainer | content = mapContainer_ iterativeContainer.content }
+
+        ConditionComponent condition ->
+            ConditionComponent <|
+                map
+                    { condition
+                        | positiveContent = mapContainer_ condition.positiveContent
+                        , negativeContent = mapContainer_ condition.negativeContent
+                    }
+
         other ->
             other
 
@@ -295,6 +407,13 @@ mapContentComponent map component =
         IterativeContainerComponent iterativeContainer ->
             IterativeContainerComponent <|
                 { iterativeContainer | content = mapContainer_ iterativeContainer.content }
+
+        ConditionComponent condition ->
+            ConditionComponent
+                { condition
+                    | positiveContent = mapContainer_ condition.positiveContent
+                    , negativeContent = mapContainer_ condition.negativeContent
+                }
 
         ContentComponentComponent contentComponent ->
             ContentComponentComponent <|
@@ -420,6 +539,38 @@ viewComponent model component =
                 , viewContainer model False iterativeContainer.content
                 ]
 
+        ConditionComponent condition ->
+            viewCard { icon = "fas fa-code-branch", label = "Condition", uuid = condition.uuid, controls = True, isBlock = condition.isBlock }
+                model
+                [ div [ class "form-group row mb-2" ]
+                    [ label [ class "col-md-2 col-form-label" ] [ text "Predicate" ]
+                    , div [ class "col-md-10" ]
+                        [ input
+                            [ type_ "text"
+                            , class "form-control"
+                            , onInput (UpdateConditionPredicate condition.uuid)
+                            , value condition.predicate
+                            ]
+                            []
+                        ]
+                    ]
+                , div [ class "form-group row" ]
+                    [ label [ class "col-md-2 col-form-label" ] [ text "Value" ]
+                    , div [ class "col-md-10" ]
+                        [ input
+                            [ type_ "text"
+                            , class "form-control"
+                            , onInput (UpdateConditionValue condition.uuid)
+                            , value condition.value
+                            ]
+                            []
+                        ]
+                    ]
+                , hr [] []
+                , viewContainerWithLabel "Positive Content" model False condition.positiveContent
+                , viewContainerWithLabel "Negative Content" model False condition.negativeContent
+                ]
+
         ContentComponentComponent contentComponent ->
             let
                 getComponentIconAndName componentType =
@@ -538,7 +689,12 @@ viewComponent model component =
 
 
 viewContainer : Model -> Bool -> Container -> Html Msg
-viewContainer model controls container =
+viewContainer =
+    viewContainerWithLabel "Container"
+
+
+viewContainerWithLabel : String -> Model -> Bool -> Container -> Html Msg
+viewContainerWithLabel containerLabel model controls container =
     let
         dropdownId =
             "container-" ++ Uuid.toString container.uuid
@@ -563,13 +719,14 @@ viewContainer model controls container =
                         , text "Add"
                         ]
                 , items =
-                    [ dropdownItem "far fa-square" "Container" (AddContainer container.uuid)
+                    [ dropdownItem "fas fa-th-large" "Container" (AddContainer container.uuid)
                     , dropdownItem "fas fa-sync-alt" "IterativeContainer" (AddIterativeContainer container.uuid)
+                    , dropdownItem "fas fa-code-branch" "Condition" (AddCondition container.uuid)
                     , dropdownItem "far fa-file-alt" "Content" (AddContentComponent container.uuid)
                     ]
                 }
     in
-    viewCard { icon = "far fa-square", label = "Container", uuid = container.uuid, controls = controls, isBlock = container.isBlock }
+    viewCard { icon = "fas fa-th-large", label = containerLabel, uuid = container.uuid, controls = controls, isBlock = container.isBlock }
         model
         (children ++ [ dropdown ])
 

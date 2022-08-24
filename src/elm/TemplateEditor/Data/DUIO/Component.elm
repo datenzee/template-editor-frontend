@@ -1,5 +1,6 @@
 module TemplateEditor.Data.DUIO.Component exposing
     ( Component(..)
+    , Condition
     , Container
     , ContentComponent
     , ContentComponentContent(..)
@@ -30,6 +31,7 @@ type Component
     = ContainerComponent Container
     | IterativeContainerComponent IterativeContainer
     | ContentComponentComponent ContentComponent
+    | ConditionComponent Condition
 
 
 decoder : Decoder Component
@@ -47,6 +49,9 @@ decoderByType componentType =
         "IterativeContainer" ->
             D.map IterativeContainerComponent iterativeContainerDecoder
 
+        "Condition" ->
+            D.map ConditionComponent conditionDecoder
+
         "ContentComponent" ->
             D.map ContentComponentComponent contentComponentDecoder
 
@@ -63,6 +68,9 @@ encode component =
         IterativeContainerComponent iterativeContainer ->
             iterativeContainerEncode iterativeContainer
 
+        ConditionComponent condition ->
+            conditionEncode condition
+
         ContentComponentComponent contentComponent ->
             contentComponentEncode contentComponent
 
@@ -75,6 +83,9 @@ getUuid component =
 
         IterativeContainerComponent iterativeContainer ->
             iterativeContainer.uuid
+
+        ConditionComponent condition ->
+            condition.uuid
 
         ContentComponentComponent contentComponent ->
             contentComponent.uuid
@@ -92,6 +103,9 @@ rdfIdentifier component =
 
         IterativeContainerComponent iterativeContainer ->
             toIdentifier "IterativeContainer" iterativeContainer.uuid
+
+        ConditionComponent condition ->
+            toIdentifier "Condition" condition.uuid
 
         ContentComponentComponent contentComponent ->
             case contentComponent.componentType of
@@ -173,19 +187,49 @@ toRdfOpts isRootContainer component =
 
         IterativeContainerComponent iterativeContainer ->
             let
+                content =
+                    ContainerComponent iterativeContainer.content
+
                 iterativeContainerRdf =
                     Rdf.createNode (base identifier)
                         |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
                         |> Rdf.addPredicate (rdf "type") (duio "IterativeContainer")
                         |> Rdf.addPredicateBoolean (duio "componentIsBlock") iterativeContainer.isBlock
-                        |> Rdf.addPredicate (duio "iterativeContainerContent") (base (rdfIdentifier (ContainerComponent iterativeContainer.content)))
+                        |> Rdf.addPredicate (duio "iterativeContainerContent") (base (rdfIdentifier content))
                         |> Rdf.addPredicateIRI (duio "iterativeContainerPredicate") iterativeContainer.predicate
                         |> Rdf.nodeToString
 
                 contentRdf =
-                    toRdf (ContainerComponent iterativeContainer.content)
+                    toRdf content
             in
             iterativeContainerRdf ++ contentRdf
+
+        ConditionComponent condition ->
+            let
+                positiveContent =
+                    ContainerComponent condition.positiveContent
+
+                negativeContent =
+                    ContainerComponent condition.negativeContent
+
+                conditionRdf =
+                    Rdf.createNode (base identifier)
+                        |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
+                        |> Rdf.addPredicate (rdf "type") (duio "ConditionComponent")
+                        |> Rdf.addPredicateBoolean (duio "componentIsBlock") condition.isBlock
+                        |> Rdf.addPredicateIRI (duio "conditionComponentPredicate") condition.predicate
+                        |> Rdf.addPredicateLiteral (duio "conditionComponentValue") condition.value
+                        |> Rdf.addPredicate (duio "conditionComponentPositiveContent") (base (rdfIdentifier positiveContent))
+                        |> Rdf.addPredicate (duio "conditionComponentNegativeContent") (base (rdfIdentifier negativeContent))
+                        |> Rdf.nodeToString
+
+                positiveContentRdf =
+                    toRdf positiveContent
+
+                negativeContentRdf =
+                    toRdf negativeContent
+            in
+            conditionRdf ++ positiveContentRdf ++ negativeContentRdf
 
         ContentComponentComponent contentComponent ->
             let
@@ -285,6 +329,44 @@ iterativeContainerEncode container =
         , ( "predicate", E.string container.predicate )
         , ( "content", containerEncode container.content )
         , ( "isBlock", E.bool container.isBlock )
+        ]
+
+
+
+-- Condition Component
+
+
+type alias Condition =
+    { uuid : Uuid
+    , predicate : String
+    , value : String
+    , positiveContent : Container
+    , negativeContent : Container
+    , isBlock : Bool
+    }
+
+
+conditionDecoder : Decoder Condition
+conditionDecoder =
+    D.succeed Condition
+        |> D.required "uuid" Uuid.decoder
+        |> D.required "predicate" D.string
+        |> D.required "value" D.string
+        |> D.required "positiveContent" containerDecoder
+        |> D.required "negativeContent" containerDecoder
+        |> D.required "isBlock" D.bool
+
+
+conditionEncode : Condition -> E.Value
+conditionEncode condition =
+    E.object
+        [ ( "type", E.string "Condition" )
+        , ( "uuid", Uuid.encode condition.uuid )
+        , ( "predicate", E.string condition.predicate )
+        , ( "value", E.string condition.value )
+        , ( "positiveContent", containerEncode condition.positiveContent )
+        , ( "negativeContent", containerEncode condition.negativeContent )
+        , ( "isBlock", E.bool condition.isBlock )
         ]
 
 
