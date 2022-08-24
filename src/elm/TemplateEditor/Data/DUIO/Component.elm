@@ -101,6 +101,12 @@ rdfIdentifier component =
                 TextContentComponentType ->
                     toIdentifier "TextComponent" contentComponent.uuid
 
+                StrongContentComponentType ->
+                    toIdentifier "StrongComponent" contentComponent.uuid
+
+                EmphasisContentComponentType ->
+                    toIdentifier "EmphasisComponent" contentComponent.uuid
+
 
 rootContainerIdentifier : String
 rootContainerIdentifier =
@@ -190,6 +196,12 @@ toRdfOpts isRootContainer component =
 
                         TextContentComponentType ->
                             "TextComponent"
+
+                        StrongContentComponentType ->
+                            "StrongComponent"
+
+                        EmphasisContentComponentType ->
+                            "EmphasisComponent"
 
                 ( contentProperty, contentValue, contentRdf ) =
                     case contentComponent.content of
@@ -291,6 +303,8 @@ type alias ContentComponent =
 type ContentComponentType
     = HeadingContentComponentType
     | TextContentComponentType
+    | StrongContentComponentType
+    | EmphasisContentComponentType
 
 
 type ContentComponentContent
@@ -317,6 +331,12 @@ contentComponentTypeDecoder =
 
                 "TextComponent" ->
                     D.succeed TextContentComponentType
+
+                "StrongContentComponentType" ->
+                    D.succeed StrongContentComponentType
+
+                "EmphasisContentComponentType" ->
+                    D.succeed EmphasisContentComponentType
 
                 _ ->
                     D.fail <| "Unknown plain text component type " ++ componentType
@@ -365,6 +385,16 @@ contentComponentTypeEncode contentComponentType =
         TextContentComponentType ->
             E.object
                 [ ( "type", E.string "TextComponent" )
+                ]
+
+        StrongContentComponentType ->
+            E.object
+                [ ( "type", E.string "StrongContentComponentType" )
+                ]
+
+        EmphasisContentComponentType ->
+            E.object
+                [ ( "type", E.string "EmphasisContentComponentType" )
                 ]
 
 

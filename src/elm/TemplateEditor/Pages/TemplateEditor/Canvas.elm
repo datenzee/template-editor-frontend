@@ -430,6 +430,12 @@ viewComponent model component =
                         TextContentComponentType ->
                             ( "fas fa-paragraph", "Text" )
 
+                        StrongContentComponentType ->
+                            ( "fas fa-bold", "Strong" )
+
+                        EmphasisContentComponentType ->
+                            ( "fas fa-italic", "Emphasis" )
+
                 ( componentIcon, componentName ) =
                     getComponentIconAndName contentComponent.componentType
 
@@ -446,7 +452,7 @@ viewComponent model component =
                             getComponentIconAndName componentType
                     in
                     Dropdown.buttonItem [ onClick (UpdateContentComponentType contentComponent.uuid componentType) ]
-                        [ fa icon [ class "me-2 text-muted" ], text label ]
+                        [ fa icon [ class "me-2 text-muted fa-fw" ], text label ]
 
                 componentTitleDropdown =
                     Dropdown.dropdown typeDropdownState
@@ -454,10 +460,16 @@ viewComponent model component =
                         , toggleMsg = DropdownMsg typeDropdownId
                         , toggleButton =
                             Dropdown.toggle [ Button.roleLink ]
-                                [ fa componentIcon [ class "me-1" ]
+                                [ fa componentIcon [ class "me-1 fa-fw" ]
                                 , text componentName
                                 ]
-                        , items = List.map typeDropdownItem [ HeadingContentComponentType, TextContentComponentType ]
+                        , items =
+                            List.map typeDropdownItem
+                                [ HeadingContentComponentType
+                                , TextContentComponentType
+                                , StrongContentComponentType
+                                , EmphasisContentComponentType
+                                ]
                         }
 
                 ( contentValue, toContent ) =
@@ -576,7 +588,7 @@ viewCard { icon, label, uuid, controls, isBlock } =
     viewCardExtra
         { component =
             div []
-                [ fa icon [ class "me-1" ]
+                [ fa icon [ class "me-1 fa-fw" ]
                 , text label
                 ]
         , uuid = uuid
