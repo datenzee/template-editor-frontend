@@ -3,8 +3,8 @@ module TemplateEditor.Pages.TemplateEditor.Canvas exposing (..)
 import Bootstrap.Button as Button
 import Bootstrap.Dropdown as Dropdown
 import Dict exposing (Dict)
-import Html exposing (Html, a, div, form, hr, i, input, label, pre, text, textarea)
-import Html.Attributes exposing (checked, class, readonly, rows, style, type_, value)
+import Html exposing (Html, a, button, div, form, h5, hr, i, input, label, pre, text, textarea)
+import Html.Attributes exposing (checked, class, classList, readonly, rows, style, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput)
 import Html.Extra exposing (emptyNode)
 import Maybe.Extra as Maybe
@@ -15,6 +15,7 @@ import TemplateEditor.Common.Setters exposing (setComponentType, setContent, set
 import TemplateEditor.Data.AppState exposing (AppState)
 import TemplateEditor.Data.DUIO.App as App exposing (App)
 import TemplateEditor.Data.DUIO.Component as Component exposing (Component(..), Condition, Container, ContentComponent, ContentComponentContent(..), ContentComponentType(..), IterativeContainer)
+import TemplateEditor.Ports as Ports
 import Uuid exposing (Uuid)
 
 
@@ -22,6 +23,9 @@ type alias Model =
     { app : App
     , dropdownStates : Dict String Dropdown.State
     , collapsedComponents : Set String
+    , moveModalUuid : Maybe Uuid
+    , moveModalValue : String
+    , moveModalError : Maybe String
     }
 
 
@@ -30,6 +34,9 @@ init app =
     { app = app
     , dropdownStates = Dict.empty
     , collapsedComponents = Set.empty
+    , moveModalUuid = Nothing
+    , moveModalValue = ""
+    , moveModalError = Nothing
     }
 
 
@@ -52,11 +59,18 @@ type Msg
     | ExpandComponent Uuid
     | CollapseAll
     | ExpandAll
+    | CopyUuid Uuid
+    | MoveModalSetUuid (Maybe Uuid)
+    | MoveModalSetValue String
+    | MoveModalConfirm
 
 
-update : AppState -> Msg -> Model -> ( Seed, Model )
+update : AppState -> Msg -> Model -> ( Seed, Model, Cmd Msg )
 update appState msg model =
     let
+        wrap m =
+            ( appState.seed, m, Cmd.none )
+
         updateRootComponent rootComponent =
             let
                 app =
@@ -64,14 +78,25 @@ update appState msg model =
             in
             { model | app = { app | rootComponent = rootComponent } }
 
-        addComponent parentUuid component =
+        addComponent parentUuid component currentModel =
             let
                 insert : Container -> Container
                 insert parentContainer =
                     { parentContainer | contains = parentContainer.contains ++ [ component ] }
             in
             updateRootComponent <|
-                mapContainer (mapHelper parentUuid insert) model.app.rootComponent
+                mapContainer (mapHelper parentUuid insert) currentModel.app.rootComponent
+
+        deleteComponent uuid currentModel =
+            let
+                delete : Container -> Container
+                delete container =
+                    { container | contains = List.filter ((/=) uuid << Component.getUuid) container.contains }
+
+                rootComponent =
+                    mapContainer delete currentModel.app.rootComponent
+            in
+            updateRootComponent rootComponent
 
         updateComponent uuid mapFn updateFn =
             updateRootComponent <|
@@ -79,9 +104,7 @@ update appState msg model =
     in
     case msg of
         DropdownMsg id state ->
-            ( appState.seed
-            , { model | dropdownStates = Dict.insert id state model.dropdownStates }
-            )
+            wrap { model | dropdownStates = Dict.insert id state model.dropdownStates }
 
         AddContainer parentUuid ->
             let
@@ -95,7 +118,7 @@ update appState msg model =
                         , isBlock = False
                         }
             in
-            ( newSeed, addComponent parentUuid container )
+            ( newSeed, addComponent parentUuid container model, Cmd.none )
 
         AddIterativeContainer parentUuid ->
             let
@@ -117,7 +140,7 @@ update appState msg model =
                         , isBlock = False
                         }
             in
-            ( newSeed2, addComponent parentUuid iterativeContainer )
+            ( newSeed2, addComponent parentUuid iterativeContainer model, Cmd.none )
 
         AddCondition parentUuid ->
             let
@@ -148,7 +171,7 @@ update appState msg model =
                         , isBlock = False
                         }
             in
-            ( newSeed3, addComponent parentUuid condition )
+            ( newSeed3, addComponent parentUuid condition model, Cmd.none )
 
         AddContentComponent parentUuid ->
             let
@@ -163,41 +186,29 @@ update appState msg model =
                         , isBlock = False
                         }
             in
-            ( newSeed, addComponent parentUuid contentComponent )
+            ( newSeed, addComponent parentUuid contentComponent model, Cmd.none )
 
         UpdateIsBlock uuid isBlock ->
             let
                 app =
                     model.app
             in
-            ( appState.seed
-            , { model | app = { app | rootComponent = updateIsBlock isBlock uuid app.rootComponent } }
-            )
+            wrap { model | app = { app | rootComponent = updateIsBlock isBlock uuid app.rootComponent } }
 
         UpdateIterativeContainerPredicate uuid predicate ->
-            ( appState.seed
-            , updateComponent uuid mapIterativeContainer (setPredicate predicate)
-            )
+            wrap <| updateComponent uuid mapIterativeContainer (setPredicate predicate)
 
         UpdateConditionPredicate uuid predicate ->
-            ( appState.seed
-            , updateComponent uuid mapCondition (setPredicate predicate)
-            )
+            wrap <| updateComponent uuid mapCondition (setPredicate predicate)
 
         UpdateConditionValue uuid predicate ->
-            ( appState.seed
-            , updateComponent uuid mapCondition (setValue predicate)
-            )
+            wrap <| updateComponent uuid mapCondition (setValue predicate)
 
         UpdateContentComponentType uuid type_ ->
-            ( appState.seed
-            , updateComponent uuid mapContentComponent (setComponentType type_)
-            )
+            wrap <| updateComponent uuid mapContentComponent (setComponentType type_)
 
         UpdateContentComponentContent uuid content ->
-            ( appState.seed
-            , updateComponent uuid mapContentComponent (setContent content)
-            )
+            wrap <| updateComponent uuid mapContentComponent (setContent content)
 
         MoveComponentUp uuid ->
             let
@@ -208,7 +219,7 @@ update appState msg model =
                 rootComponent =
                     mapContainer move model.app.rootComponent
             in
-            ( appState.seed, updateRootComponent rootComponent )
+            wrap <| updateRootComponent rootComponent
 
         MoveComponentDown uuid ->
             let
@@ -219,24 +230,16 @@ update appState msg model =
                 rootComponent =
                     mapContainer move model.app.rootComponent
             in
-            ( appState.seed, updateRootComponent rootComponent )
+            wrap <| updateRootComponent rootComponent
 
         DeleteComponent uuid ->
-            let
-                delete : Container -> Container
-                delete container =
-                    { container | contains = List.filter ((/=) uuid << Component.getUuid) container.contains }
-
-                rootComponent =
-                    mapContainer delete model.app.rootComponent
-            in
-            ( appState.seed, updateRootComponent rootComponent )
+            wrap <| deleteComponent uuid model
 
         CollapseComponent uuid ->
-            ( appState.seed, { model | collapsedComponents = Set.insert (Uuid.toString uuid) model.collapsedComponents } )
+            wrap { model | collapsedComponents = Set.insert (Uuid.toString uuid) model.collapsedComponents }
 
         ExpandComponent uuid ->
-            ( appState.seed, { model | collapsedComponents = Set.remove (Uuid.toString uuid) model.collapsedComponents } )
+            wrap { model | collapsedComponents = Set.remove (Uuid.toString uuid) model.collapsedComponents }
 
         CollapseAll ->
             let
@@ -254,10 +257,45 @@ update appState msg model =
                         ContentComponentComponent { uuid } ->
                             [ uuid ]
             in
-            ( appState.seed, { model | collapsedComponents = Set.fromList <| List.map Uuid.toString <| getUuids model.app.rootComponent } )
+            wrap { model | collapsedComponents = Set.fromList <| List.map Uuid.toString <| getUuids model.app.rootComponent }
 
         ExpandAll ->
-            ( appState.seed, { model | collapsedComponents = Set.empty } )
+            wrap { model | collapsedComponents = Set.empty }
+
+        CopyUuid uuid ->
+            ( appState.seed, model, Ports.copyToClipboard (Uuid.toString uuid) )
+
+        MoveModalSetUuid mbUuid ->
+            wrap { model | moveModalUuid = mbUuid, moveModalValue = "", moveModalError = Nothing }
+
+        MoveModalSetValue value ->
+            wrap { model | moveModalValue = value }
+
+        MoveModalConfirm ->
+            case model.moveModalUuid of
+                Just moveModalUuid ->
+                    let
+                        mbMovingComponent =
+                            getComponent moveModalUuid model.app.rootComponent
+
+                        mbParentComponent =
+                            getComponent (Uuid.fromUuidString model.moveModalValue) model.app.rootComponent
+                    in
+                    case ( mbMovingComponent, mbParentComponent ) of
+                        ( Just movingComponent, Just parentComponent ) ->
+                            let
+                                newModel =
+                                    model
+                                        |> deleteComponent (Component.getUuid movingComponent)
+                                        |> addComponent (Component.getUuid parentComponent) movingComponent
+                            in
+                            wrap { newModel | moveModalUuid = Nothing }
+
+                        _ ->
+                            wrap { model | moveModalError = Just "Invalid component UUID." }
+
+                Nothing ->
+                    wrap model
 
 
 updateIsBlock : Bool -> Uuid -> Component -> Component
@@ -473,6 +511,50 @@ moveDown uuid components =
     (List.foldl fold { swapped = False, acc = [] } components).acc
 
 
+getComponent : Uuid -> Component -> Maybe Component
+getComponent uuid component =
+    if Component.getUuid component == uuid then
+        Just component
+
+    else
+        let
+            fold : Component -> Maybe Component -> Maybe Component
+            fold comp acc =
+                if Maybe.isJust acc then
+                    acc
+
+                else
+                    getComponent uuid comp
+
+            foldChildren =
+                List.foldl fold Nothing
+        in
+        case component of
+            ContainerComponent container ->
+                foldChildren container.contains
+
+            IterativeContainerComponent iterativeContainer ->
+                if iterativeContainer.content.uuid == uuid then
+                    Just (ContainerComponent iterativeContainer.content)
+
+                else
+                    foldChildren iterativeContainer.content.contains
+
+            ConditionComponent condition ->
+                if condition.positiveContent.uuid == uuid then
+                    Just (ContainerComponent condition.positiveContent)
+
+                else if condition.negativeContent.uuid == uuid then
+                    Just (ContainerComponent condition.negativeContent)
+
+                else
+                    foldChildren condition.positiveContent.contains
+                        |> Maybe.orElse (foldChildren condition.negativeContent.contains)
+
+            ContentComponentComponent _ ->
+                Nothing
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
     let
@@ -492,6 +574,7 @@ view model =
             , a [ onClick CollapseAll, class "text-primary" ] [ text "Collapse all" ]
             ]
         , viewApp model
+        , viewMoveModal model
         ]
 
 
@@ -518,7 +601,7 @@ viewComponent model component =
             viewContainer model True container
 
         IterativeContainerComponent iterativeContainer ->
-            viewCard { icon = "fas fa-sync-alt", label = "IterativeContainer", uuid = iterativeContainer.uuid, controls = True, isBlock = iterativeContainer.isBlock }
+            viewCard { icon = "fas fa-sync-alt", label = "IterativeContainer", uuid = iterativeContainer.uuid, controls = True, copyUuid = False, isBlock = iterativeContainer.isBlock }
                 model
                 [ div [ class "form-group row" ]
                     [ label
@@ -540,7 +623,7 @@ viewComponent model component =
                 ]
 
         ConditionComponent condition ->
-            viewCard { icon = "fas fa-code-branch", label = "Condition", uuid = condition.uuid, controls = True, isBlock = condition.isBlock }
+            viewCard { icon = "fas fa-code-branch", label = "Condition", uuid = condition.uuid, controls = True, copyUuid = False, isBlock = condition.isBlock }
                 model
                 [ div [ class "form-group row mb-2" ]
                     [ label [ class "col-md-2 col-form-label" ] [ text "Predicate" ]
@@ -668,7 +751,7 @@ viewComponent model component =
                         , items = List.map contentDropdownItem [ ContentComponentPredicate, ContentComponentText ]
                         }
             in
-            viewCardExtra { component = componentTitleDropdown, uuid = contentComponent.uuid, controls = True, isBlock = contentComponent.isBlock }
+            viewCardExtra { component = componentTitleDropdown, uuid = contentComponent.uuid, controls = True, copyUuid = False, isBlock = contentComponent.isBlock }
                 model
                 [ div [ class "form-group row" ]
                     [ label
@@ -726,7 +809,7 @@ viewContainerWithLabel containerLabel model controls container =
                     ]
                 }
     in
-    viewCard { icon = "fas fa-th-large", label = containerLabel, uuid = container.uuid, controls = controls, isBlock = container.isBlock }
+    viewCard { icon = "fas fa-th-large", label = containerLabel, uuid = container.uuid, controls = controls, copyUuid = True, isBlock = container.isBlock }
         model
         (children ++ [ dropdown ])
 
@@ -736,12 +819,13 @@ type alias ViewCardConfig =
     , label : String
     , uuid : Uuid
     , controls : Bool
+    , copyUuid : Bool
     , isBlock : Bool
     }
 
 
 viewCard : ViewCardConfig -> Model -> List (Html Msg) -> Html Msg
-viewCard { icon, label, uuid, controls, isBlock } =
+viewCard { icon, label, uuid, controls, copyUuid, isBlock } =
     viewCardExtra
         { component =
             div []
@@ -750,6 +834,7 @@ viewCard { icon, label, uuid, controls, isBlock } =
                 ]
         , uuid = uuid
         , controls = controls
+        , copyUuid = copyUuid
         , isBlock = isBlock
         }
 
@@ -758,26 +843,31 @@ type alias ViewCardExtraConfig =
     { component : Html Msg
     , uuid : Uuid
     , controls : Bool
+    , copyUuid : Bool
     , isBlock : Bool
     }
 
 
 viewCardExtra : ViewCardExtraConfig -> Model -> List (Html Msg) -> Html Msg
-viewCardExtra { component, uuid, controls, isBlock } model content =
+viewCardExtra { component, uuid, controls, copyUuid, isBlock } model content =
     let
         isCollapsed =
             Set.member (Uuid.toString uuid) model.collapsedComponents
 
+        moveButton =
+            a [ onClick (MoveModalSetUuid (Just uuid)), class "text-primary ms-3" ]
+                [ fas "fa-reply" [] ]
+
         moveUpButton =
-            a [ onClick (MoveComponentUp uuid), class "text-primary me-3" ]
+            a [ onClick (MoveComponentUp uuid), class "text-primary ms-3" ]
                 [ fas "fa-arrow-up" [] ]
 
         moveDownButton =
-            a [ onClick (MoveComponentDown uuid), class "text-primary me-3" ]
+            a [ onClick (MoveComponentDown uuid), class "text-primary ms-3" ]
                 [ fas "fa-arrow-down" [] ]
 
         deleteButton =
-            a [ onClick (DeleteComponent uuid), class "text-danger" ]
+            a [ onClick (DeleteComponent uuid), class "text-danger ms-3" ]
                 [ fas "fa-trash" [] ]
 
         collapseButton =
@@ -787,16 +877,28 @@ viewCardExtra { component, uuid, controls, isBlock } model content =
             else
                 a [ onClick (CollapseComponent uuid), class "text-primary me-3" ] [ fas "fa-chevron-down fa-fw" [] ]
 
+        copyUuidButton =
+            if copyUuid then
+                a [ class "text-muted small", onClick (CopyUuid uuid) ]
+                    [ far "fa-copy me-1" []
+                    , text (Maybe.withDefault "uuid" (List.head (String.split "-" (Uuid.toString uuid))))
+                    ]
+
+            else
+                emptyNode
+
         controlButtons =
             if controls then
                 div []
-                    [ moveUpButton
+                    [ copyUuidButton
+                    , moveButton
+                    , moveUpButton
                     , moveDownButton
                     , deleteButton
                     ]
 
             else
-                emptyNode
+                div [] [ copyUuidButton ]
 
         blockCheckbox =
             label [ class "ms-3 cursor-pointer" ]
@@ -817,4 +919,42 @@ viewCardExtra { component, uuid, controls, isBlock } model content =
             , controlButtons
             ]
         , body
+        ]
+
+
+viewMoveModal : Model -> Html Msg
+viewMoveModal model =
+    let
+        errorBlock =
+            case model.moveModalError of
+                Just error ->
+                    div [ class "text-danger mb-3" ] [ text error ]
+
+                Nothing ->
+                    emptyNode
+    in
+    div [ class "modal fade", classList [ ( "show", Maybe.isJust model.moveModalUuid ) ] ]
+        [ div [ class "modal-dialog modal-dialog-centered" ]
+            [ div [ class "modal-content" ]
+                [ div [ class "modal-header" ]
+                    [ h5 [ class "modal-title" ] [ text "Move" ] ]
+                , div [ class "modal-body" ]
+                    [ errorBlock
+                    , label [] [ text "New parent UUID" ]
+                    , div []
+                        [ input
+                            [ type_ "text"
+                            , class "form-control"
+                            , onInput MoveModalSetValue
+                            , value model.moveModalValue
+                            ]
+                            []
+                        ]
+                    ]
+                , div [ class "modal-footer justify-content-between" ]
+                    [ button [ class "btn btn-secondary", onClick (MoveModalSetUuid Nothing) ] [ text "Cancel" ]
+                    , button [ class "btn btn-primary", onClick MoveModalConfirm ] [ text "Move" ]
+                    ]
+                ]
+            ]
         ]

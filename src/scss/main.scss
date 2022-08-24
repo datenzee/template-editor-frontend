@@ -113,6 +113,14 @@ h1 {
   cursor: pointer !important;
 }
 
+.modal {
+  background: rgba(0, 0, 0, 0.6);
+
+  &.show {
+    display: block;
+  }
+}
+
 
 // loader
 

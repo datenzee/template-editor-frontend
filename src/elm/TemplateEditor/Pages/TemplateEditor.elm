@@ -179,12 +179,12 @@ update appState msg model =
             case model.canvasModel of
                 Just canvasModel ->
                     let
-                        ( seed, newCanvasModel ) =
+                        ( seed, newCanvasModel, cmd ) =
                             Canvas.update appState canvasMsg canvasModel
                     in
                     ( seed
                     , { model | canvasModel = Just newCanvasModel }
-                    , Cmd.none
+                    , Cmd.map CanvasMsg cmd
                     )
 
                 Nothing ->
