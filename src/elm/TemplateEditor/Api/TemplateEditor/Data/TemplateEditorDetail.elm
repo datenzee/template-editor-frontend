@@ -49,5 +49,5 @@ encode templateEditor =
         [ ( "name", E.string templateEditor.name )
         , ( "content", E.string <| E.encode 0 <| App.encode templateEditor.content )
         , ( "url", E.maybe E.string templateEditor.url )
-        , ( "datUrl", E.maybe E.string templateEditor.url )
+        , ( "data_url", E.maybe E.string templateEditor.dataUrl )
         ]
