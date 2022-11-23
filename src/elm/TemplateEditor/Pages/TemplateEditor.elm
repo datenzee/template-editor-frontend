@@ -21,7 +21,7 @@ import TemplateEditor.Api.TemplateEditor.Data.TemplateEditorDetail exposing (Tem
 import TemplateEditor.Api.TemplateEditor.TemplateEditors as TemplateEditors
 import TemplateEditor.Data.AppState exposing (AppState)
 import TemplateEditor.Data.DUIO.App as App
-import TemplateEditor.Pages.TemplateEditor.Canvas as Canvas
+import TemplateEditor.Pages.TemplateEditor.Canvas2 as Canvas
 import TemplateEditor.Ports as Ports
 
 
@@ -143,7 +143,9 @@ update appState msg model =
             withSeed <|
                 let
                     rdf =
-                        Maybe.unwrap "" (App.toRdf << .app) model.canvasModel
+                        -- TODO
+                        --Maybe.unwrap "" (App.toRdf << .app) model.canvasModel
+                        ""
 
                     cmd =
                         TemplateEditors.publish appState model.id rdf PublishComplete
@@ -196,7 +198,9 @@ update appState msg model =
                     Just canvasModel ->
                         let
                             rdf =
-                                App.toRdf canvasModel.app
+                                -- TODO
+                                --App.toRdf canvasModel.app
+                                ""
 
                             cmd =
                                 Ports.copyToClipboard rdf
@@ -418,7 +422,9 @@ viewRDF : Canvas.Model -> Html Msg
 viewRDF canvasModel =
     let
         content =
-            App.toRdf canvasModel.app
+            -- TODO
+            --App.toRdf canvasModel.app
+            ""
     in
     textarea [ class "form-control code-preview", readonly True ]
         [ text content ]

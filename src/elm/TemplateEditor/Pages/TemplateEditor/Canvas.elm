@@ -3,7 +3,7 @@ module TemplateEditor.Pages.TemplateEditor.Canvas exposing (..)
 import Bootstrap.Button as Button
 import Bootstrap.Dropdown as Dropdown
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, div, form, h5, hr, i, input, label, pre, text, textarea)
+import Html exposing (Html, a, button, div, form, h5, hr, i, input, label, li, pre, span, strong, text, textarea, ul)
 import Html.Attributes exposing (checked, class, classList, readonly, rows, style, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput)
 import Html.Extra exposing (emptyNode)
@@ -574,12 +574,37 @@ subscriptions model =
 view : Model -> Html Msg
 view model =
     div [ class "app-canvas" ]
-        [ div [ class "mb-3" ]
-            [ a [ onClick ExpandAll, class "text-primary me-2" ] [ text "Expand all" ]
-            , a [ onClick CollapseAll, class "text-primary" ] [ text "Collapse all" ]
+        [ div [ class "component-list" ]
+            [ strong [] [ text "Components" ]
+            , ul [ class "fa-ul mt-2" ]
+                [ li []
+                    [ a []
+                        [ span [ class "fa-li" ] [ fas "fa-file-invoice" [] ]
+                        , text "Tralala"
+                        ]
+                    ]
+                , li []
+                    [ a []
+                        [ span [ class "fa-li" ] [ fas "fa-file-invoice" [] ]
+                        , text "Tralala"
+                        ]
+                    ]
+                , li [ class "mt-3" ]
+                    [ a []
+                        [ span [ class "fa-li" ] [ fas "fa-plus" [] ]
+                        , text "Add"
+                        ]
+                    ]
+                ]
             ]
-        , viewApp model
-        , viewMoveModal model
+        , div [ class "component-data" ]
+            [ div [ class "mb-3" ]
+                [ a [ onClick ExpandAll, class "text-primary me-2" ] [ text "Expand all" ]
+                , a [ onClick CollapseAll, class "text-primary" ] [ text "Collapse all" ]
+                ]
+            , viewApp model
+            , viewMoveModal model
+            ]
         ]
 
 

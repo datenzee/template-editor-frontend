@@ -59,6 +59,9 @@ h1 {
 }
 
 .app-canvas {
+  display: flex;
+  gap: 1rem;
+
   a {
     cursor: pointer;
   }
@@ -86,6 +89,27 @@ h1 {
       outline: none;
       box-shadow: none;
     }
+  }
+
+  .component-list {
+    width: 9rem;
+    border-right: 1px solid $gray-200;
+
+    ul {
+      li {
+        a {
+          display: block;
+
+          &:hover {
+            color: $primary;
+          }
+        }
+      }
+    }
+  }
+
+  .component-data {
+    flex-grow: 1;
   }
 }
 
@@ -118,6 +142,15 @@ h1 {
 
   &.show {
     display: block;
+  }
+}
+
+.fa-ul {
+  margin-left: 1em;
+
+  .fa-li {
+    width: 1.5em;
+    left: -1.5em;
   }
 }
 
