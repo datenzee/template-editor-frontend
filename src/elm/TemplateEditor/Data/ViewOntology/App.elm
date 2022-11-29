@@ -3,6 +3,7 @@ module TemplateEditor.Data.ViewOntology.App exposing (..)
 import Json.Decode as D exposing (Decoder)
 import Json.Decode.Pipeline as D
 import Json.Encode as E
+import Random exposing (Seed)
 import TemplateEditor.Data.ViewOntology.Component exposing (DataComponent, dataComponentDecoder, encodeDataComponent, initDataComponent)
 
 
@@ -22,9 +23,28 @@ encode app =
         [ ( "components", E.list encodeDataComponent app.components ) ]
 
 
-addDataComponent : String -> App -> App
-addDataComponent name app =
-    { app | components = app.components ++ [ initDataComponent name ] }
+addDataComponent : Seed -> String -> App -> ( App, Seed )
+addDataComponent seed name app =
+    let
+        ( component, newSeed ) =
+            initDataComponent seed name
+    in
+    ( { app | components = app.components ++ [ component ] }
+    , newSeed
+    )
+
+
+updateDataComponent : String -> DataComponent -> App -> App
+updateDataComponent componentName newValue app =
+    let
+        mapComponent component =
+            if component.name == componentName then
+                newValue
+
+            else
+                component
+    in
+    { app | components = List.map mapComponent app.components }
 
 
 deleteDataComponent : String -> App -> App

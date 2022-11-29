@@ -3,6 +3,7 @@ module TemplateEditor.Data.ViewOntology.Component exposing (..)
 import Json.Decode as D exposing (Decoder)
 import Json.Decode.Pipeline as D
 import Json.Encode as E
+import Random exposing (Seed)
 import Rdf
 import TemplateEditor.Data.DUIO.Prefixes exposing (base, duio, owl, rdf)
 import Uuid exposing (Uuid)
@@ -14,19 +15,17 @@ type alias DataComponent =
     }
 
 
-initDataComponent : String -> DataComponent
-initDataComponent name =
-    { name = name
-    , content =
-        { order = 1
-        , content =
-            TreeContentNode
-                { contains = []
-                , isBlock = True
-                , content = NodeContentContainer
-                }
-        }
-    }
+initDataComponent : Seed -> String -> ( DataComponent, Seed )
+initDataComponent seed name =
+    let
+        ( container, newSeed ) =
+            initTreeContainer seed
+    in
+    ( { name = name
+      , content = container
+      }
+    , newSeed
+    )
 
 
 dataComponentDecoder : Decoder DataComponent
@@ -46,14 +45,56 @@ encodeDataComponent data =
 
 type alias Tree =
     { order : Float
+    , uuid : Uuid
     , content : TreeContent
     }
+
+
+initTreeContainer : Seed -> ( Tree, Seed )
+initTreeContainer seed =
+    let
+        ( uuid, newSeed ) =
+            Random.step Uuid.uuidGenerator seed
+    in
+    ( { order = 1
+      , uuid = uuid
+      , content =
+            TreeContentNode
+                { contains = []
+                , isBlock = True
+                , content = NodeContentContainer
+                }
+      }
+    , newSeed
+    )
+
+
+initTreeContent : Seed -> ( Tree, Seed )
+initTreeContent seed =
+    let
+        ( uuid, newSeed ) =
+            Random.step Uuid.uuidGenerator seed
+    in
+    ( { order = 1
+      , uuid = uuid
+      , content =
+            TreeContentLeaf
+                { content =
+                    LeafContentContent
+                        { contentSource = LeafContentSourcePredicate ""
+                        , content = ContentContent
+                        }
+                }
+      }
+    , newSeed
+    )
 
 
 treeDecoder : Decoder Tree
 treeDecoder =
     D.succeed Tree
         |> D.required "order" D.float
+        |> D.required "uuid" Uuid.decoder
         |> D.required "content" treeContentDecoder
 
 
@@ -61,8 +102,14 @@ encodeTree : Tree -> E.Value
 encodeTree data =
     E.object
         [ ( "order", E.float data.order )
+        , ( "uuid", Uuid.encode data.uuid )
         , ( "content", encodeTreeContent data.content )
         ]
+
+
+sortTrees : List Tree -> List Tree
+sortTrees =
+    List.sortBy .order
 
 
 type TreeContent
@@ -120,6 +167,22 @@ type LeafContent
     | LeafContentContent Content
 
 
+initLeafContentDataComponentWrapper : LeafContent
+initLeafContentDataComponentWrapper =
+    LeafContentDataComponentWrapper
+        { predicate = ""
+        , dataComponent = ""
+        }
+
+
+initLeafContentContent : LeafContent
+initLeafContentContent =
+    LeafContentContent
+        { contentSource = LeafContentSourcePredicate ""
+        , content = ContentContent
+        }
+
+
 leafContentDecoder : Decoder LeafContent
 leafContentDecoder =
     D.field "type" D.string
@@ -170,8 +233,7 @@ encodeDataComponentWrapper data =
 
 
 type alias Content =
-    { textContent : TextContent
-    , predicate : String
+    { contentSource : LeafContentSource
     , content : ContentContent
     }
 
@@ -179,8 +241,7 @@ type alias Content =
 contentDecoder : Decoder Content
 contentDecoder =
     D.succeed Content
-        |> D.required "textContent" textContentDecoder
-        |> D.required "predicate" D.string
+        |> D.required "contentSource" leafContentSourceDecoder
         |> D.required "content" contentContentDecoder
 
 
@@ -188,10 +249,47 @@ encodeContent : Content -> E.Value
 encodeContent data =
     E.object
         [ ( "type", E.string "LeafContentContent" )
-        , ( "textContent", encodeTextContent data.textContent )
-        , ( "predicate", E.string data.predicate )
+        , ( "contentSource", encodeLeafContentSource data.contentSource )
         , ( "content", encodeContentContent data.content )
         ]
+
+
+type LeafContentSource
+    = LeafContentSourcePredicate String
+    | LeafContentSourceText String
+
+
+leafContentSourceDecoder : Decoder LeafContentSource
+leafContentSourceDecoder =
+    D.field "type" D.string
+        |> D.andThen
+            (\type_ ->
+                case type_ of
+                    "LeafContentSourcePredicate" ->
+                        D.map LeafContentSourcePredicate (D.field "predicate" D.string)
+
+                    "LeafContentSourceText" ->
+                        D.map LeafContentSourceText (D.field "text" D.string)
+
+                    _ ->
+                        D.fail ("Unknown content source" ++ type_)
+            )
+
+
+encodeLeafContentSource : LeafContentSource -> E.Value
+encodeLeafContentSource data =
+    case data of
+        LeafContentSourcePredicate predicate ->
+            E.object
+                [ ( "type", E.string "LeafContentSourcePredicate" )
+                , ( "predicate", E.string predicate )
+                ]
+
+        LeafContentSourceText text ->
+            E.object
+                [ ( "type", E.string "LeafContentSourceText" )
+                , ( "text", E.string text )
+                ]
 
 
 type ContentContent
@@ -310,6 +408,20 @@ type NodeContent
     | NodeContentIterativeContainer IterativeContainerData
 
 
+initNodeContentCondition : Seed -> ( NodeContent, Seed )
+initNodeContentCondition seed =
+    let
+        ( condition, newSeed ) =
+            initCondition seed
+    in
+    ( NodeContentCondition condition, newSeed )
+
+
+initNodeContentIterativeContainer : NodeContent
+initNodeContentIterativeContainer =
+    NodeContentIterativeContainer { predicate = "" }
+
+
 nodeContentDecoder : Decoder NodeContent
 nodeContentDecoder =
     D.field "type" D.string
@@ -387,6 +499,24 @@ encodeCondition data =
         , ( "containsPositive", encodeTree data.containsPositive )
         , ( "containsNegative", encodeTree data.containsNegative )
         ]
+
+
+initCondition : Seed -> ( Condition, Seed )
+initCondition seed =
+    let
+        ( positiveContent, newSeed1 ) =
+            initTreeContainer seed
+
+        ( negativeContent, newSeed2 ) =
+            initTreeContainer newSeed1
+    in
+    ( { predicate = ""
+      , value = ""
+      , containsPositive = positiveContent
+      , containsNegative = negativeContent
+      }
+    , newSeed2
+    )
 
 
 type alias IterativeContainerData =

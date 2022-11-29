@@ -3,8 +3,8 @@ module TemplateEditor.Pages.TemplateEditor.Canvas exposing (..)
 import Bootstrap.Button as Button
 import Bootstrap.Dropdown as Dropdown
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, div, form, h5, hr, i, input, label, li, pre, span, strong, text, textarea, ul)
-import Html.Attributes exposing (checked, class, classList, readonly, rows, style, type_, value)
+import Html exposing (Html, a, button, div, h5, hr, input, label, li, span, strong, text, ul)
+import Html.Attributes exposing (checked, class, classList, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput)
 import Html.Extra exposing (emptyNode)
 import Maybe.Extra as Maybe
@@ -13,7 +13,7 @@ import Set exposing (Set)
 import TemplateEditor.Common.FontAwesome exposing (fa, far, fas)
 import TemplateEditor.Common.Setters exposing (setComponentType, setContent, setPredicate, setUrlLabel, setValue)
 import TemplateEditor.Data.AppState exposing (AppState)
-import TemplateEditor.Data.DUIO.App as App exposing (App)
+import TemplateEditor.Data.DUIO.App exposing (App)
 import TemplateEditor.Data.DUIO.Component as Component exposing (Component(..), Condition, Container, ContentComponent, ContentComponentContent(..), ContentComponentType(..), IterativeContainer, defaultContentComponentContent)
 import TemplateEditor.Ports as Ports
 import Uuid exposing (Uuid)
