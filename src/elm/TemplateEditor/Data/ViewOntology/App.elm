@@ -4,7 +4,9 @@ import Json.Decode as D exposing (Decoder)
 import Json.Decode.Pipeline as D
 import Json.Encode as E
 import Random exposing (Seed)
-import TemplateEditor.Data.ViewOntology.Component exposing (DataComponent, dataComponentDecoder, encodeDataComponent, initDataComponent)
+import Rdf
+import TemplateEditor.Data.DUIO.Prefixes as Prefixes
+import TemplateEditor.Data.ViewOntology.Component exposing (DataComponent, dataComponentDecoder, dataComponentToRdf, encodeDataComponent, initDataComponent)
 
 
 type alias App =
@@ -21,6 +23,29 @@ encode : App -> E.Value
 encode app =
     E.object
         [ ( "components", E.list encodeDataComponent app.components ) ]
+
+
+toRdf : App -> String
+toRdf app =
+    let
+        prefixes =
+            List.map Rdf.prefixToString
+                [ Prefixes.voPrefix
+                , Prefixes.owlPrefix
+                , Prefixes.rdfPrefix
+                , Prefixes.xmlPrefix
+                , Prefixes.xsdPrefix
+                , Prefixes.rdfsPrefix
+                , Prefixes.basePrefix
+                ]
+                ++ [ "@base <http://example.com> ." ]
+                |> String.join "\n"
+
+        dataComponents =
+            List.map dataComponentToRdf app.components
+                |> String.join "\n"
+    in
+    prefixes ++ "\n\n\n" ++ dataComponents
 
 
 addDataComponent : Seed -> String -> App -> ( App, Seed )

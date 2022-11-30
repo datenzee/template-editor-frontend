@@ -3,8 +3,8 @@ module TemplateEditor.Pages.TemplateEditor.Canvas2 exposing (..)
 import Bootstrap.Button as Button
 import Bootstrap.Dropdown as Dropdown
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, div, form, h5, hr, i, input, label, li, pre, span, strong, text, textarea, ul)
-import Html.Attributes exposing (checked, class, classList, readonly, rows, style, type_, value)
+import Html exposing (Html, a, button, div, form, h5, hr, i, input, label, li, option, pre, select, span, strong, text, textarea, ul)
+import Html.Attributes exposing (checked, class, classList, readonly, rows, selected, style, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput)
 import Html.Extra exposing (emptyNode)
 import List.Extra as List
@@ -14,7 +14,7 @@ import Set exposing (Set)
 import TemplateEditor.Common.FontAwesome exposing (fa, fas)
 import TemplateEditor.Data.AppState exposing (AppState)
 import TemplateEditor.Data.ViewOntology.App as App exposing (App)
-import TemplateEditor.Data.ViewOntology.Component exposing (Condition, ContentContent(..), DataComponent, DataComponentWrapper, IterativeContainerData, Leaf, LeafContent(..), LeafContentSource(..), Node, NodeContent(..), Tree, TreeContent(..), initLeafContentContent, initLeafContentDataComponentWrapper, initNodeContentCondition, initNodeContentIterativeContainer, initTreeContainer, initTreeContent, sortTrees)
+import TemplateEditor.Data.ViewOntology.Component exposing (Condition, Content, ContentContent(..), DataComponent, DataComponentWrapper, IterativeContainerData, Leaf, LeafContent(..), LeafContentSource(..), Node, NodeContent(..), Tree, TreeContent(..), contentContentFromString, contentContentToString, initLeafContentContent, initLeafContentDataComponentWrapper, initNodeContentCondition, initNodeContentIterativeContainer, initTreeContainer, initTreeContent, sortTrees)
 import Uuid exposing (Uuid)
 
 
@@ -67,6 +67,7 @@ type Msg
     | UpdateDataComponentPredicate Uuid String
     | UpdateDataComponentDataComponent Uuid String
     | UpdateLeafContentSource Uuid LeafContentSource
+    | UpdateLeafContentContent Uuid String
 
 
 type NodeType
@@ -254,23 +255,31 @@ update appState msg model =
         UpdateDataComponentDataComponent uuid dataComponent ->
             wrap <| updateDataComponent uuid (\dcw -> { dcw | dataComponent = dataComponent }) model
 
-        UpdateLeafContentSource uuid leafContentSource ->
-            let
-                updateLeafContentSource leaf =
-                    case leaf.content of
-                        LeafContentContent content ->
-                            { leaf | content = LeafContentContent { content | contentSource = leafContentSource } }
+        UpdateLeafContentSource uuid contentSource ->
+            wrap <| updateContent uuid (\content -> { content | contentSource = contentSource }) model
 
-                        _ ->
-                            leaf
-
-                updateComponent component =
-                    { component | content = updateLeaf updateLeafContentSource uuid component.content }
-            in
-            wrap <| updateCurrentComponent updateComponent model
+        UpdateLeafContentContent uuid contentContent ->
+            wrap <| updateContent uuid (\content -> { content | content = contentContentFromString contentContent }) model
 
         _ ->
             ( appState.seed, model, Cmd.none )
+
+
+updateContent : Uuid -> (Content -> Content) -> Model -> Model
+updateContent uuid updateFn model =
+    let
+        updateLeafContentSource leaf =
+            case leaf.content of
+                LeafContentContent content ->
+                    { leaf | content = LeafContentContent (updateFn content) }
+
+                _ ->
+                    leaf
+
+        updateComponent component =
+            { component | content = updateLeaf updateLeafContentSource uuid component.content }
+    in
+    updateCurrentComponent updateComponent model
 
 
 updateDataComponent : Uuid -> (DataComponentWrapper -> DataComponentWrapper) -> Model -> Model
@@ -690,8 +699,35 @@ viewLeaf model uuid leaf =
                                     , sourceDropdownItem "Text" LeafContentSourceText
                                     ]
                                 }
+
+                        viewContentOption contentContent =
+                            option
+                                [ value (contentContentToString contentContent)
+                                , selected (contentContent == leafContent.content)
+                                ]
+                                [ text (contentContentToString contentContent) ]
+
+                        contentOptions =
+                            [ ContentContent
+                            , ContentDate
+                            , ContentDateTime
+                            , ContentTime
+                            , ContentEmail
+                            , ContentUrl
+                            ]
                     in
                     [ div [ class "form-group row mb-2" ]
+                        [ label [ class "col-md-2 col-form-label" ] [ text "Content" ]
+                        , div [ class "col-md-10" ]
+                            [ select
+                                [ class "form-control"
+                                , value (contentContentToString leafContent.content)
+                                , onInput (UpdateLeafContentContent uuid)
+                                ]
+                                (List.map viewContentOption contentOptions)
+                            ]
+                        ]
+                    , div [ class "form-group row mb-2" ]
                         [ label [ class "col-md-2 col-form-label" ] [ sourceDropdown ]
                         , div [ class "col-md-10" ]
                             [ input

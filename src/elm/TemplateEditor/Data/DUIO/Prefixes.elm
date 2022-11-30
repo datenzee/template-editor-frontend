@@ -13,6 +13,16 @@ duio =
     Rdf.usePrefix duioPrefix
 
 
+voPrefix : Rdf.Prefix
+voPrefix =
+    Rdf.createPrefix "vo" "http://purl.org/datenzee/view-ontology#"
+
+
+vo : String -> String
+vo =
+    Rdf.usePrefix voPrefix
+
+
 owlPrefix : Rdf.Prefix
 owlPrefix =
     Rdf.createPrefix "owl" "http://www.w3.org/2002/07/owl#"

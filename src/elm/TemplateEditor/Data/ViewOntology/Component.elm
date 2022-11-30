@@ -5,7 +5,7 @@ import Json.Decode.Pipeline as D
 import Json.Encode as E
 import Random exposing (Seed)
 import Rdf
-import TemplateEditor.Data.DUIO.Prefixes exposing (base, duio, owl, rdf)
+import TemplateEditor.Data.DUIO.Prefixes exposing (base, duio, owl, rdf, vo)
 import Uuid exposing (Uuid)
 
 
@@ -43,11 +43,84 @@ encodeDataComponent data =
         ]
 
 
+dataComponentToRdf : DataComponent -> String
+dataComponentToRdf dataComponent =
+    let
+        comment =
+            "# " ++ dataComponent.name ++ " " ++ String.join "" (List.repeat 50 "-") ++ "\n"
+
+        componentRdf =
+            Rdf.createNode (base dataComponent.name)
+                |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
+                |> Rdf.addPredicate (rdf "type") (vo "DataComponent")
+                |> Rdf.addPredicateLiteral (vo "dataComponentName") dataComponent.name
+                |> Rdf.addPredicate (vo "dataComponentContent") (rdfIdentifier dataComponent.content)
+                |> Rdf.nodeToString
+
+        contentRdf =
+            treeToRdf 0 dataComponent.content
+    in
+    comment ++ componentRdf ++ contentRdf
+
+
 type alias Tree =
     { order : Float
     , uuid : Uuid
     , content : TreeContent
     }
+
+
+rdfIdentifier : Tree -> String
+rdfIdentifier tree =
+    let
+        toIdentifier componentName =
+            base (componentName ++ "_" ++ String.replace "-" "" (Uuid.toString tree.uuid))
+    in
+    case tree.content of
+        TreeContentLeaf leaf ->
+            case leaf.content of
+                LeafContentDataComponentWrapper _ ->
+                    toIdentifier "DataComponent"
+
+                LeafContentContent leafContent ->
+                    case leafContent.content of
+                        ContentContent ->
+                            toIdentifier "Content"
+
+                        ContentDate ->
+                            toIdentifier "Date"
+
+                        ContentDateTime ->
+                            toIdentifier "DateTime"
+
+                        ContentEmail ->
+                            toIdentifier "Email"
+
+                        ContentTime ->
+                            toIdentifier "Time"
+
+                        ContentUrl ->
+                            toIdentifier "Url"
+
+        TreeContentNode node ->
+            case node.content of
+                NodeContentStrong ->
+                    toIdentifier "Strong"
+
+                NodeContentEmphasis ->
+                    toIdentifier "Emphasis"
+
+                NodeContentHeading ->
+                    toIdentifier "Heading"
+
+                NodeContentCondition _ ->
+                    toIdentifier "Condition"
+
+                NodeContentContainer ->
+                    toIdentifier "Container"
+
+                NodeContentIterativeContainer _ ->
+                    toIdentifier "IterativeContainer"
 
 
 initTreeContainer : Seed -> ( Tree, Seed )
@@ -105,6 +178,124 @@ encodeTree data =
         , ( "uuid", Uuid.encode data.uuid )
         , ( "content", encodeTreeContent data.content )
         ]
+
+
+treeToRdf : Int -> Tree -> String
+treeToRdf order tree =
+    let
+        treeNode =
+            Rdf.createNode (rdfIdentifier tree)
+
+        ( withData, childrenRdf ) =
+            case tree.content of
+                TreeContentLeaf leaf ->
+                    let
+                        rdfBase =
+                            treeNode
+                                |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
+                    in
+                    case leaf.content of
+                        LeafContentDataComponentWrapper data ->
+                            ( rdfBase
+                                |> Rdf.addPredicate (rdf "type") (vo "DataComponentWrapper")
+                                |> Rdf.addPredicateIRI (vo "dataComponent") data.dataComponent
+                                |> Rdf.addPredicateIRI (vo "dataComponentPredicate") data.predicate
+                            , ""
+                            )
+
+                        LeafContentContent data ->
+                            let
+                                contentBase =
+                                    rdfBase
+                                        |> Rdf.addPredicate (rdf "type") (vo "Content")
+                            in
+                            case data.contentSource of
+                                LeafContentSourcePredicate predicate ->
+                                    ( contentBase
+                                        |> Rdf.addPredicateIRI (vo "contentPredicate") predicate
+                                    , ""
+                                    )
+
+                                LeafContentSourceText text ->
+                                    let
+                                        textContentIdentifier =
+                                            base ("TextContent_" ++ String.replace "-" "" (Uuid.toString tree.uuid))
+
+                                        textContent =
+                                            Rdf.createNode textContentIdentifier
+                                                |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
+                                                |> Rdf.addPredicate (rdf "type") (vo "TextContent")
+                                                |> Rdf.addPredicateLiteral (rdf "textContentValue") text
+                                                |> Rdf.nodeToString
+                                    in
+                                    ( contentBase
+                                        |> Rdf.addPredicate (vo "contentContent") textContentIdentifier
+                                    , textContent
+                                    )
+
+                TreeContentNode node ->
+                    let
+                        rdfBase =
+                            treeNode
+                                |> Rdf.addPredicateBoolean (vo "isBlock") node.isBlock
+                                |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
+
+                        addChild predicate child rdfNode =
+                            Rdf.addPredicate predicate (rdfIdentifier child) rdfNode
+
+                        addChildren predicate children rdfNode =
+                            List.foldl (addChild predicate) rdfNode children
+
+                        addChildrenDefault =
+                            addChildren (vo "contains") node.contains
+
+                        createChildrenRdf children =
+                            String.join "" <|
+                                List.indexedMap treeToRdf children
+                    in
+                    case node.content of
+                        NodeContentStrong ->
+                            ( addChildrenDefault (Rdf.addPredicate (rdf "type") (vo "Strong") rdfBase)
+                            , createChildrenRdf node.contains
+                            )
+
+                        NodeContentEmphasis ->
+                            ( addChildrenDefault (Rdf.addPredicate (rdf "type") (vo "Emphasis") rdfBase)
+                            , createChildrenRdf node.contains
+                            )
+
+                        NodeContentHeading ->
+                            ( addChildrenDefault (Rdf.addPredicate (rdf "type") (vo "Heading") rdfBase)
+                            , createChildrenRdf node.contains
+                            )
+
+                        NodeContentCondition condition ->
+                            ( rdfBase
+                                |> Rdf.addPredicate (rdf "type") (vo "Condition")
+                                |> Rdf.addPredicateIRI (vo "conditionPredicate") condition.predicate
+                                |> Rdf.addPredicateLiteral (vo "conditionValue") condition.value
+                                |> addChildren (vo "conditionContainsPositive") [ condition.containsPositive ]
+                                |> addChildren (vo "conditionContainsNegative") [ condition.containsNegative ]
+                            , createChildrenRdf [ condition.containsPositive ] ++ createChildrenRdf [ condition.containsNegative ]
+                            )
+
+                        NodeContentContainer ->
+                            ( addChildrenDefault (Rdf.addPredicate (rdf "type") (vo "Container") rdfBase)
+                            , createChildrenRdf node.contains
+                            )
+
+                        NodeContentIterativeContainer iterativeContainer ->
+                            ( rdfBase
+                                |> Rdf.addPredicate (rdf "type") (vo "IterativeContainer")
+                                |> Rdf.addPredicateIRI (vo "iterativeContainerPredicate") iterativeContainer.predicate
+                                |> addChildrenDefault
+                            , createChildrenRdf node.contains
+                            )
+
+        withOrder =
+            Rdf.addPredicateDecimal (vo "order") (toFloat order) withData
+    in
+    Rdf.nodeToString withOrder ++ childrenRdf
 
 
 sortTrees : List Tree -> List Tree
@@ -298,7 +489,51 @@ type ContentContent
     | ContentDateTime
     | ContentEmail
     | ContentTime
-    | ContentUrl Url
+    | ContentUrl
+
+
+contentContentToString : ContentContent -> String
+contentContentToString contentContent =
+    case contentContent of
+        ContentContent ->
+            "Content"
+
+        ContentDate ->
+            "Date"
+
+        ContentDateTime ->
+            "DateTime"
+
+        ContentEmail ->
+            "Email"
+
+        ContentTime ->
+            "Time"
+
+        ContentUrl ->
+            "Url"
+
+
+contentContentFromString : String -> ContentContent
+contentContentFromString value =
+    case value of
+        "Date" ->
+            ContentDate
+
+        "DateTime" ->
+            ContentDateTime
+
+        "Email" ->
+            ContentEmail
+
+        "Time" ->
+            ContentTime
+
+        "Url" ->
+            ContentUrl
+
+        _ ->
+            ContentContent
 
 
 contentContentDecoder : Decoder ContentContent
@@ -323,7 +558,7 @@ contentContentDecoder =
                         D.succeed ContentTime
 
                     "ContentUrl" ->
-                        D.map ContentUrl urlDecoder
+                        D.succeed ContentUrl
 
                     _ ->
                         D.fail ("Unknown content type " ++ type_)
@@ -348,8 +583,8 @@ encodeContentContent data =
         ContentTime ->
             E.object [ ( "type", E.string "ContentTime" ) ]
 
-        ContentUrl url ->
-            encodeUrl url
+        ContentUrl ->
+            E.object [ ( "type", E.string "ContentUrl" ) ]
 
 
 type alias Url =

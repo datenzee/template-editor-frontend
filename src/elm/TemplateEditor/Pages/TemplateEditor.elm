@@ -20,7 +20,7 @@ import TemplateEditor.Api.TemplateEditor.Data.PublishResult exposing (PublishRes
 import TemplateEditor.Api.TemplateEditor.Data.TemplateEditorDetail exposing (TemplateEditorDetail)
 import TemplateEditor.Api.TemplateEditor.TemplateEditors as TemplateEditors
 import TemplateEditor.Data.AppState exposing (AppState)
-import TemplateEditor.Data.DUIO.App as App
+import TemplateEditor.Data.ViewOntology.App as App
 import TemplateEditor.Pages.TemplateEditor.Canvas2 as Canvas
 import TemplateEditor.Ports as Ports
 
@@ -48,7 +48,7 @@ initialModel id =
     , saving = ActionResult.Unset
     , publishing = ActionResult.Unset
     , canvasModel = Nothing
-    , rightView = PreviewView
+    , rightView = RDFView
     , previewUrl = ActionResult.Unset
     }
 
@@ -198,9 +198,7 @@ update appState msg model =
                     Just canvasModel ->
                         let
                             rdf =
-                                -- TODO
-                                --App.toRdf canvasModel.app
-                                ""
+                                App.toRdf canvasModel.app
 
                             cmd =
                                 Ports.copyToClipboard rdf
@@ -422,9 +420,7 @@ viewRDF : Canvas.Model -> Html Msg
 viewRDF canvasModel =
     let
         content =
-            -- TODO
-            --App.toRdf canvasModel.app
-            ""
+            App.toRdf canvasModel.app
     in
     textarea [ class "form-control code-preview", readonly True ]
         [ text content ]

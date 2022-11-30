@@ -35,6 +35,7 @@ type Object
     | Literal String
     | IRI String
     | Boolean Bool
+    | Decimal Float
 
 
 createNode : String -> Node
@@ -62,6 +63,11 @@ addPredicateLiteral predicate object =
 addPredicateBoolean : String -> Bool -> Node -> Node
 addPredicateBoolean predicate object =
     addPredicateObject predicate (Boolean object)
+
+
+addPredicateDecimal : String -> Float -> Node -> Node
+addPredicateDecimal predicate object =
+    addPredicateObject predicate (Decimal object)
 
 
 addPredicateObject : String -> Object -> Node -> Node
@@ -106,7 +112,7 @@ objectToString object =
             ref
 
         Literal literal ->
-            "\"" ++ literal ++ "\"^^xsd:string"
+            "\"" ++ literal ++ "\""
 
         IRI iri ->
             "<" ++ iri ++ ">"
@@ -117,3 +123,6 @@ objectToString object =
 
             else
                 "false"
+
+        Decimal number ->
+            String.fromFloat number
