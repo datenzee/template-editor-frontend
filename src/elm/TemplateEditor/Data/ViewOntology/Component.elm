@@ -225,7 +225,7 @@ treeToRdf order tree =
                                             Rdf.createNode textContentIdentifier
                                                 |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
                                                 |> Rdf.addPredicate (rdf "type") (vo "TextContent")
-                                                |> Rdf.addPredicateLiteral (rdf "textContentValue") text
+                                                |> Rdf.addPredicateLiteral (vo "textContentValue") text
                                                 |> Rdf.nodeToString
                                     in
                                     ( contentBase
