@@ -143,9 +143,7 @@ update appState msg model =
             withSeed <|
                 let
                     rdf =
-                        -- TODO
-                        --Maybe.unwrap "" (App.toRdf << .app) model.canvasModel
-                        ""
+                        Maybe.unwrap "" (App.toRdf << .app) model.canvasModel
 
                     cmd =
                         TemplateEditors.publish appState model.id rdf PublishComplete
