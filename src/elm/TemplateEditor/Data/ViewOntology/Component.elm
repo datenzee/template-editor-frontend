@@ -100,7 +100,7 @@ rdfIdentifier tree =
                             toIdentifier "Time"
 
                         ContentUrl ->
-                            toIdentifier "Url"
+                            toIdentifier "URL"
 
         TreeContentNode node ->
             case node.content of
@@ -206,8 +206,24 @@ treeToRdf order tree =
                         LeafContentContent data ->
                             let
                                 contentBase =
-                                    rdfBase
-                                        |> Rdf.addPredicate (rdf "type") (vo "Content")
+                                    case data.content of
+                                        ContentContent ->
+                                            rdfBase |> Rdf.addPredicate (rdf "type") (vo "Content")
+
+                                        ContentDate ->
+                                            rdfBase |> Rdf.addPredicate (rdf "type") (vo "Date")
+
+                                        ContentDateTime ->
+                                            rdfBase |> Rdf.addPredicate (rdf "type") (vo "DateTime")
+
+                                        ContentEmail ->
+                                            rdfBase |> Rdf.addPredicate (rdf "type") (vo "Email")
+
+                                        ContentTime ->
+                                            rdfBase |> Rdf.addPredicate (rdf "type") (vo "Time")
+
+                                        ContentUrl ->
+                                            rdfBase |> Rdf.addPredicate (rdf "type") (vo "URL")
                             in
                             case data.contentSource of
                                 LeafContentSourcePredicate predicate ->
