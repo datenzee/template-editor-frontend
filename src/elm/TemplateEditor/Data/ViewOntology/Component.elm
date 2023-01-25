@@ -5,7 +5,7 @@ import Json.Decode.Pipeline as D
 import Json.Encode as E
 import Random exposing (Seed)
 import Rdf
-import TemplateEditor.Data.DUIO.Prefixes exposing (base, duio, owl, rdf, vo)
+import TemplateEditor.Data.ViewOntology.Prefixes exposing (base, owl, rdf, vo)
 import Uuid exposing (Uuid)
 
 

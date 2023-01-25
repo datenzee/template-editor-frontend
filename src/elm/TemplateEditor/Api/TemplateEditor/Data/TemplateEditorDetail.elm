@@ -17,6 +17,8 @@ type alias TemplateEditorDetail =
     , content : App
     , url : Maybe String
     , dataUrl : Maybe String
+    , rootComponent : Maybe String
+    , expanderType : Maybe String
     }
 
 
@@ -41,6 +43,8 @@ decoder =
         |> D.required "content" contentDecoder
         |> D.optional "url" (D.maybe D.string) Nothing
         |> D.optional "data_url" (D.maybe D.string) Nothing
+        |> D.optional "root_component" (D.maybe D.string) Nothing
+        |> D.optional "expander_type" (D.maybe D.string) Nothing
 
 
 encode : TemplateEditorDetail -> E.Value
@@ -50,4 +54,6 @@ encode templateEditor =
         , ( "content", E.string <| E.encode 0 <| App.encode templateEditor.content )
         , ( "url", E.maybe E.string templateEditor.url )
         , ( "data_url", E.maybe E.string templateEditor.dataUrl )
+        , ( "root_component", E.maybe E.string templateEditor.rootComponent )
+        , ( "expander_type", E.maybe E.string templateEditor.expanderType )
         ]

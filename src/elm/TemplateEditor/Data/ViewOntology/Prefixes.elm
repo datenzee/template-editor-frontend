@@ -1,16 +1,6 @@
-module TemplateEditor.Data.DUIO.Prefixes exposing (..)
+module TemplateEditor.Data.ViewOntology.Prefixes exposing (..)
 
 import Rdf
-
-
-duioPrefix : Rdf.Prefix
-duioPrefix =
-    Rdf.createPrefix "duio" "http://purl.org/datenzee/ui-ontology#"
-
-
-duio : String -> String
-duio =
-    Rdf.usePrefix duioPrefix
 
 
 voPrefix : Rdf.Prefix

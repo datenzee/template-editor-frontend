@@ -9,7 +9,6 @@ module TemplateEditor.Pages.Login exposing
     )
 
 import ActionResult exposing (ActionResult)
-import Browser exposing (Document)
 import Html exposing (Html, button, div, form, h4, i, img, input, p, span, text)
 import Html.Attributes exposing (alt, class, id, placeholder, src, style, type_)
 import Html.Events exposing (onInput, onSubmit)
@@ -18,7 +17,6 @@ import Http
 import TemplateEditor.Api.DSW.Data.Token exposing (Token)
 import TemplateEditor.Api.DSW.Tokens as Tokens
 import TemplateEditor.Data.AppState exposing (AppState)
-import TemplateEditor.Layouts.PublicLayout as PublicLayout
 
 
 type alias Model =

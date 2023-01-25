@@ -3,67 +3,85 @@ module TemplateEditor.Pages.TemplateEditor.Canvas exposing (..)
 import Bootstrap.Button as Button
 import Bootstrap.Dropdown as Dropdown
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, div, h5, hr, input, label, li, span, strong, text, ul)
-import Html.Attributes exposing (checked, class, classList, type_, value)
+import Html exposing (Html, a, button, div, h5, hr, input, label, li, option, select, span, strong, text, ul)
+import Html.Attributes exposing (checked, class, classList, selected, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput)
 import Html.Extra exposing (emptyNode)
+import List.Extra as List
 import Maybe.Extra as Maybe
 import Random exposing (Seed)
 import Set exposing (Set)
-import TemplateEditor.Common.FontAwesome exposing (fa, far, fas)
-import TemplateEditor.Common.Setters exposing (setComponentType, setContent, setPredicate, setUrlLabel, setValue)
+import TemplateEditor.Common.FontAwesome exposing (fa, fas)
 import TemplateEditor.Data.AppState exposing (AppState)
-import TemplateEditor.Data.DUIO.App exposing (App)
-import TemplateEditor.Data.DUIO.Component as Component exposing (Component(..), Condition, Container, ContentComponent, ContentComponentContent(..), ContentComponentType(..), IterativeContainer, defaultContentComponentContent)
-import TemplateEditor.Ports as Ports
+import TemplateEditor.Data.ViewOntology.App as App exposing (App)
+import TemplateEditor.Data.ViewOntology.Component exposing (Condition, Content, ContentContent(..), DataComponent, DataComponentWrapper, IterativeContainerData, Leaf, LeafContent(..), LeafContentSource(..), Node, NodeContent(..), Tree, TreeContent(..), contentContentFromString, contentContentToString, initLeafContentContent, initLeafContentDataComponentWrapper, initNodeContentCondition, initNodeContentIterativeContainer, initTreeContainer, initTreeContent, sortTrees)
 import Uuid exposing (Uuid)
 
 
 type alias Model =
     { app : App
+    , addComponentModalOpen : Bool
+    , addComponentModalValue : String
+    , addComponentModalError : Maybe String
+    , openedDataComponent : Maybe DataComponent
+    , dataComponentToDelete : Maybe DataComponent
     , dropdownStates : Dict String Dropdown.State
     , collapsedComponents : Set String
-    , moveModalUuid : Maybe Uuid
-    , moveModalValue : String
-    , moveModalError : Maybe String
     }
 
 
 init : App -> Model
 init app =
     { app = app
+    , addComponentModalOpen = False
+    , addComponentModalValue = ""
+    , addComponentModalError = Nothing
+    , openedDataComponent = List.head app.components
+    , dataComponentToDelete = Nothing
     , dropdownStates = Dict.empty
     , collapsedComponents = Set.empty
-    , moveModalUuid = Nothing
-    , moveModalValue = ""
-    , moveModalError = Nothing
     }
 
 
 type Msg
-    = DropdownMsg String Dropdown.State
-    | AddContainer Uuid
-    | AddIterativeContainer Uuid
-    | AddCondition Uuid
-    | AddContentComponent Uuid
+    = CollapseAll
+    | ExpandAll
+    | OpenAddDataComponentModal Bool
+    | AddDataComponentModalInput String
+    | AddDataComponent
+    | OpenDataComponent DataComponent
+    | SetDataComponentToDelete (Maybe DataComponent)
+    | DeleteDataComponent String
+    | ExpandComponent Uuid
+    | CollapseComponent Uuid
+    | UpdateNodeType Uuid NodeType
+    | UpdateLeafType Uuid LeafType
     | UpdateIsBlock Uuid Bool
-    | UpdateIterativeContainerPredicate Uuid String
+    | AddNode Uuid
+    | AddLeaf Uuid
+    | DeleteTree Uuid
+    | DropdownMsg String Dropdown.State
     | UpdateConditionPredicate Uuid String
     | UpdateConditionValue Uuid String
-    | UpdateContentComponentType Uuid ContentComponentType
-    | UpdateContentComponentContent Uuid ContentComponentContent
-    | UpdateContentComponentUrlLabel Uuid ContentComponentContent
-    | MoveComponentUp Uuid
-    | MoveComponentDown Uuid
-    | DeleteComponent Uuid
-    | CollapseComponent Uuid
-    | ExpandComponent Uuid
-    | CollapseAll
-    | ExpandAll
-    | CopyUuid Uuid
-    | MoveModalSetUuid (Maybe Uuid)
-    | MoveModalSetValue String
-    | MoveModalConfirm
+    | UpdateIterativeContainerPredicate Uuid String
+    | UpdateDataComponentPredicate Uuid String
+    | UpdateDataComponentDataComponent Uuid String
+    | UpdateLeafContentSource Uuid LeafContentSource
+    | UpdateLeafContentContent Uuid String
+
+
+type NodeType
+    = NodeTypeStrong
+    | NodeTypeEmphasis
+    | NodeTypeHeading
+    | NodeTypeCondition
+    | NodeTypeContainer
+    | NodeTypeIterativeContainer
+
+
+type LeafType
+    = LeafTypeDataComponentWrapper
+    | LeafTypeContent
 
 
 update : AppState -> Msg -> Model -> ( Seed, Model, Cmd Msg )
@@ -71,174 +89,53 @@ update appState msg model =
     let
         wrap m =
             ( appState.seed, m, Cmd.none )
-
-        updateRootComponent rootComponent =
-            let
-                app =
-                    model.app
-            in
-            { model | app = { app | rootComponent = rootComponent } }
-
-        addComponent parentUuid component currentModel =
-            let
-                insert : Container -> Container
-                insert parentContainer =
-                    { parentContainer | contains = parentContainer.contains ++ [ component ] }
-            in
-            updateRootComponent <|
-                mapContainer (mapHelper parentUuid insert) currentModel.app.rootComponent
-
-        deleteComponent uuid currentModel =
-            let
-                delete : Container -> Container
-                delete container =
-                    { container | contains = List.filter ((/=) uuid << Component.getUuid) container.contains }
-
-                rootComponent =
-                    mapContainer delete currentModel.app.rootComponent
-            in
-            updateRootComponent rootComponent
-
-        updateComponent uuid mapFn updateFn =
-            updateRootComponent <|
-                mapFn (mapHelper uuid updateFn) model.app.rootComponent
     in
     case msg of
-        DropdownMsg id state ->
-            wrap { model | dropdownStates = Dict.insert id state model.dropdownStates }
+        OpenAddDataComponentModal open ->
+            wrap
+                { model
+                    | addComponentModalOpen = open
+                    , addComponentModalValue = ""
+                    , addComponentModalError = Nothing
+                }
 
-        AddContainer parentUuid ->
-            let
-                ( uuid, newSeed ) =
-                    Random.step Uuid.uuidGenerator appState.seed
+        AddDataComponentModalInput value ->
+            wrap { model | addComponentModalValue = value }
 
-                container =
-                    ContainerComponent
-                        { uuid = uuid
-                        , contains = []
-                        , isBlock = False
-                        }
-            in
-            ( newSeed, addComponent parentUuid container model, Cmd.none )
+        AddDataComponent ->
+            if App.componentExists model.addComponentModalValue model.app then
+                wrap
+                    { model
+                        | addComponentModalError = Just "Component with this name already exists"
+                    }
 
-        AddIterativeContainer parentUuid ->
-            let
-                ( uuid1, newSeed1 ) =
-                    Random.step Uuid.uuidGenerator appState.seed
+            else
+                let
+                    ( newApp, newSeed ) =
+                        App.addDataComponent appState.seed model.addComponentModalValue model.app
+                in
+                ( newSeed
+                , { model
+                    | addComponentModalOpen = False
+                    , app = newApp
+                    , openedDataComponent = List.last newApp.components
+                  }
+                , Cmd.none
+                )
 
-                ( uuid2, newSeed2 ) =
-                    Random.step Uuid.uuidGenerator newSeed1
+        OpenDataComponent dataComponent ->
+            wrap { model | openedDataComponent = Just dataComponent }
 
-                iterativeContainer =
-                    IterativeContainerComponent
-                        { uuid = uuid1
-                        , predicate = ""
-                        , content =
-                            { uuid = uuid2
-                            , contains = []
-                            , isBlock = False
-                            }
-                        , isBlock = False
-                        }
-            in
-            ( newSeed2, addComponent parentUuid iterativeContainer model, Cmd.none )
+        SetDataComponentToDelete dataComponent ->
+            wrap { model | dataComponentToDelete = dataComponent }
 
-        AddCondition parentUuid ->
-            let
-                ( uuid1, newSeed1 ) =
-                    Random.step Uuid.uuidGenerator appState.seed
-
-                ( uuid2, newSeed2 ) =
-                    Random.step Uuid.uuidGenerator newSeed1
-
-                ( uuid3, newSeed3 ) =
-                    Random.step Uuid.uuidGenerator newSeed2
-
-                condition =
-                    ConditionComponent
-                        { uuid = uuid1
-                        , predicate = ""
-                        , value = ""
-                        , positiveContent =
-                            { uuid = uuid2
-                            , contains = []
-                            , isBlock = False
-                            }
-                        , negativeContent =
-                            { uuid = uuid3
-                            , contains = []
-                            , isBlock = False
-                            }
-                        , isBlock = False
-                        }
-            in
-            ( newSeed3, addComponent parentUuid condition model, Cmd.none )
-
-        AddContentComponent parentUuid ->
-            let
-                ( uuid, newSeed ) =
-                    Random.step Uuid.uuidGenerator appState.seed
-
-                contentComponent =
-                    ContentComponentComponent
-                        { uuid = uuid
-                        , componentType = HeadingContentComponentType
-                        , content = defaultContentComponentContent
-                        , urlLabel = defaultContentComponentContent
-                        , isBlock = False
-                        }
-            in
-            ( newSeed, addComponent parentUuid contentComponent model, Cmd.none )
-
-        UpdateIsBlock uuid isBlock ->
-            let
-                app =
-                    model.app
-            in
-            wrap { model | app = { app | rootComponent = updateIsBlock isBlock uuid app.rootComponent } }
-
-        UpdateIterativeContainerPredicate uuid predicate ->
-            wrap <| updateComponent uuid mapIterativeContainer (setPredicate predicate)
-
-        UpdateConditionPredicate uuid predicate ->
-            wrap <| updateComponent uuid mapCondition (setPredicate predicate)
-
-        UpdateConditionValue uuid predicate ->
-            wrap <| updateComponent uuid mapCondition (setValue predicate)
-
-        UpdateContentComponentType uuid type_ ->
-            wrap <| updateComponent uuid mapContentComponent (setComponentType type_)
-
-        UpdateContentComponentContent uuid content ->
-            wrap <| updateComponent uuid mapContentComponent (setContent content)
-
-        UpdateContentComponentUrlLabel uuid content ->
-            wrap <| updateComponent uuid mapContentComponent (setUrlLabel content)
-
-        MoveComponentUp uuid ->
-            let
-                move : Container -> Container
-                move container =
-                    { container | contains = moveUp uuid container.contains }
-
-                rootComponent =
-                    mapContainer move model.app.rootComponent
-            in
-            wrap <| updateRootComponent rootComponent
-
-        MoveComponentDown uuid ->
-            let
-                move : Container -> Container
-                move container =
-                    { container | contains = moveDown uuid container.contains }
-
-                rootComponent =
-                    mapContainer move model.app.rootComponent
-            in
-            wrap <| updateRootComponent rootComponent
-
-        DeleteComponent uuid ->
-            wrap <| deleteComponent uuid model
+        DeleteDataComponent name ->
+            wrap
+                { model
+                    | app = App.deleteDataComponent name model.app
+                    , openedDataComponent = Nothing
+                    , dataComponentToDelete = Nothing
+                }
 
         CollapseComponent uuid ->
             wrap { model | collapsedComponents = Set.insert (Uuid.toString uuid) model.collapsedComponents }
@@ -246,318 +143,295 @@ update appState msg model =
         ExpandComponent uuid ->
             wrap { model | collapsedComponents = Set.remove (Uuid.toString uuid) model.collapsedComponents }
 
-        CollapseAll ->
+        UpdateNodeType uuid nodeType ->
             let
-                getUuids component =
-                    case component of
-                        ContainerComponent container ->
-                            container.uuid :: List.concatMap getUuids container.contains
+                ( newNodeContent, newSeed ) =
+                    case nodeType of
+                        NodeTypeStrong ->
+                            ( NodeContentStrong, appState.seed )
 
-                        IterativeContainerComponent iterativeContainer ->
-                            iterativeContainer.uuid :: getUuids (ContainerComponent iterativeContainer.content)
+                        NodeTypeEmphasis ->
+                            ( NodeContentEmphasis, appState.seed )
 
-                        ConditionComponent condition ->
-                            condition.uuid :: getUuids (ContainerComponent condition.positiveContent) ++ getUuids (ContainerComponent condition.negativeContent)
+                        NodeTypeHeading ->
+                            ( NodeContentHeading, appState.seed )
 
-                        ContentComponentComponent { uuid } ->
-                            [ uuid ]
+                        NodeTypeCondition ->
+                            initNodeContentCondition appState.seed
+
+                        NodeTypeContainer ->
+                            ( NodeContentContainer, appState.seed )
+
+                        NodeTypeIterativeContainer ->
+                            ( initNodeContentIterativeContainer, appState.seed )
+
+                updateNodeType node =
+                    { node | content = newNodeContent }
+
+                updateComponent component =
+                    { component | content = updateNode updateNodeType uuid component.content }
             in
-            wrap { model | collapsedComponents = Set.fromList <| List.map Uuid.toString <| getUuids model.app.rootComponent }
+            ( newSeed, updateCurrentComponent updateComponent model, Cmd.none )
 
-        ExpandAll ->
-            wrap { model | collapsedComponents = Set.empty }
+        UpdateLeafType uuid leafType ->
+            let
+                newLeafContent =
+                    case leafType of
+                        LeafTypeContent ->
+                            initLeafContentContent
 
-        CopyUuid uuid ->
-            ( appState.seed, model, Ports.copyToClipboard (Uuid.toString uuid) )
+                        LeafTypeDataComponentWrapper ->
+                            initLeafContentDataComponentWrapper
 
-        MoveModalSetUuid mbUuid ->
-            wrap { model | moveModalUuid = mbUuid, moveModalValue = "", moveModalError = Nothing }
+                updateLeafType leaf =
+                    { leaf | content = newLeafContent }
 
-        MoveModalSetValue value ->
-            wrap { model | moveModalValue = value }
+                updateComponent component =
+                    { component | content = updateLeaf updateLeafType uuid component.content }
+            in
+            ( appState.seed, updateCurrentComponent updateComponent model, Cmd.none )
 
-        MoveModalConfirm ->
-            case model.moveModalUuid of
-                Just moveModalUuid ->
-                    let
-                        mbMovingComponent =
-                            getComponent moveModalUuid model.app.rootComponent
+        UpdateIsBlock uuid isBlock ->
+            let
+                updateIsBlock node =
+                    { node | isBlock = isBlock }
 
-                        mbParentComponent =
-                            getComponent (Uuid.fromUuidString model.moveModalValue) model.app.rootComponent
-                    in
-                    case ( mbMovingComponent, mbParentComponent ) of
-                        ( Just movingComponent, Just parentComponent ) ->
-                            let
-                                newModel =
-                                    model
-                                        |> deleteComponent (Component.getUuid movingComponent)
-                                        |> addComponent (Component.getUuid parentComponent) movingComponent
-                            in
-                            wrap { newModel | moveModalUuid = Nothing }
+                updateComponent component =
+                    { component | content = updateNode updateIsBlock uuid component.content }
+            in
+            ( appState.seed, updateCurrentComponent updateComponent model, Cmd.none )
 
-                        _ ->
-                            wrap { model | moveModalError = Just "Invalid component UUID." }
+        AddNode parentUuid ->
+            let
+                ( tree, newSeed ) =
+                    initTreeContainer appState.seed
 
-                Nothing ->
-                    wrap model
+                updateParent node =
+                    { node | contains = node.contains ++ [ tree ] }
 
+                updateComponent component =
+                    { component | content = updateNode updateParent parentUuid component.content }
+            in
+            ( newSeed, updateCurrentComponent updateComponent model, Cmd.none )
 
-updateIsBlock : Bool -> Uuid -> Component -> Component
-updateIsBlock isBlock uuid component =
-    case component of
-        ContainerComponent container ->
-            if container.uuid == uuid then
-                ContainerComponent { container | isBlock = isBlock }
+        AddLeaf parentUuid ->
+            let
+                ( tree, newSeed ) =
+                    initTreeContent appState.seed
 
-            else
-                ContainerComponent { container | contains = List.map (updateIsBlock isBlock uuid) container.contains }
+                updateParent node =
+                    { node | contains = node.contains ++ [ tree ] }
 
-        IterativeContainerComponent iterativeContainer ->
-            if iterativeContainer.uuid == uuid then
-                IterativeContainerComponent { iterativeContainer | isBlock = isBlock }
+                updateComponent component =
+                    { component | content = updateNode updateParent parentUuid component.content }
+            in
+            ( newSeed, updateCurrentComponent updateComponent model, Cmd.none )
 
-            else
-                let
-                    container =
-                        iterativeContainer.content
-                in
-                if container.uuid == uuid then
-                    IterativeContainerComponent { iterativeContainer | content = { container | isBlock = isBlock } }
+        DeleteTree uuid ->
+            let
+                updateParent _ node =
+                    { node | contains = List.filter ((/=) uuid << .uuid) node.contains }
 
-                else
-                    IterativeContainerComponent { iterativeContainer | content = { container | contains = List.map (updateIsBlock isBlock uuid) container.contains } }
+                updateComponent component =
+                    { component | content = mapNodes updateParent component.content }
+            in
+            ( appState.seed, updateCurrentComponent updateComponent model, Cmd.none )
 
-        ConditionComponent condition ->
-            if condition.uuid == uuid then
-                ConditionComponent { condition | isBlock = isBlock }
+        DropdownMsg id state ->
+            wrap { model | dropdownStates = Dict.insert id state model.dropdownStates }
 
-            else
-                let
-                    positiveContent =
-                        condition.positiveContent
+        UpdateConditionPredicate uuid predicate ->
+            wrap <| updateCondition uuid (\condition -> { condition | predicate = predicate }) model
 
-                    negativeContent =
-                        condition.negativeContent
-                in
-                if positiveContent.uuid == uuid then
-                    ConditionComponent { condition | positiveContent = { positiveContent | isBlock = isBlock } }
+        UpdateConditionValue uuid value ->
+            wrap <| updateCondition uuid (\condition -> { condition | value = value }) model
 
-                else if negativeContent.uuid == uuid then
-                    ConditionComponent { condition | negativeContent = { negativeContent | isBlock = isBlock } }
+        UpdateIterativeContainerPredicate uuid predicate ->
+            wrap <| updateIterativeContainer uuid (\ic -> { ic | predicate = predicate }) model
 
-                else
-                    ConditionComponent
-                        { condition
-                            | positiveContent = { positiveContent | contains = List.map (updateIsBlock isBlock uuid) positiveContent.contains }
-                            , negativeContent = { negativeContent | contains = List.map (updateIsBlock isBlock uuid) negativeContent.contains }
-                        }
+        UpdateDataComponentPredicate uuid predicate ->
+            wrap <| updateDataComponent uuid (\dcw -> { dcw | predicate = predicate }) model
 
-        ContentComponentComponent contentComponent ->
-            if contentComponent.uuid == uuid then
-                ContentComponentComponent { contentComponent | isBlock = isBlock }
+        UpdateDataComponentDataComponent uuid dataComponent ->
+            wrap <| updateDataComponent uuid (\dcw -> { dcw | dataComponent = dataComponent }) model
 
-            else
-                ContentComponentComponent contentComponent
+        UpdateLeafContentSource uuid contentSource ->
+            wrap <| updateContent uuid (\content -> { content | contentSource = contentSource }) model
+
+        UpdateLeafContentContent uuid contentContent ->
+            wrap <| updateContent uuid (\content -> { content | content = contentContentFromString contentContent }) model
+
+        _ ->
+            ( appState.seed, model, Cmd.none )
 
 
-mapContainer : (Container -> Container) -> Component -> Component
-mapContainer map component =
+updateContent : Uuid -> (Content -> Content) -> Model -> Model
+updateContent uuid updateFn model =
     let
-        mapContainer_ container =
-            map { container | contains = List.map (mapContainer map) container.contains }
+        updateLeafContentSource leaf =
+            case leaf.content of
+                LeafContentContent content ->
+                    { leaf | content = LeafContentContent (updateFn content) }
+
+                _ ->
+                    leaf
+
+        updateComponent component =
+            { component | content = updateLeaf updateLeafContentSource uuid component.content }
     in
-    case component of
-        ContainerComponent container ->
-            ContainerComponent <|
-                mapContainer_ container
-
-        IterativeContainerComponent iterativeContainer ->
-            IterativeContainerComponent { iterativeContainer | content = mapContainer_ iterativeContainer.content }
-
-        ConditionComponent condition ->
-            ConditionComponent
-                { condition
-                    | positiveContent = mapContainer_ condition.positiveContent
-                    , negativeContent = mapContainer_ condition.negativeContent
-                }
-
-        other ->
-            other
+    updateCurrentComponent updateComponent model
 
 
-mapIterativeContainer : (IterativeContainer -> IterativeContainer) -> Component -> Component
-mapIterativeContainer map component =
+updateDataComponent : Uuid -> (DataComponentWrapper -> DataComponentWrapper) -> Model -> Model
+updateDataComponent uuid updateFn model =
     let
-        mapContainer_ container =
-            { container | contains = List.map (mapIterativeContainer map) container.contains }
+        updateDataComponentLeaf leaf =
+            case leaf.content of
+                LeafContentDataComponentWrapper dcw ->
+                    { leaf | content = LeafContentDataComponentWrapper (updateFn dcw) }
+
+                _ ->
+                    leaf
+
+        updateComponent component =
+            { component | content = updateLeaf updateDataComponentLeaf uuid component.content }
     in
-    case component of
-        ContainerComponent container ->
-            ContainerComponent <| mapContainer_ container
-
-        IterativeContainerComponent iterativeContainer ->
-            IterativeContainerComponent <|
-                map { iterativeContainer | content = mapContainer_ iterativeContainer.content }
-
-        ConditionComponent condition ->
-            ConditionComponent
-                { condition
-                    | positiveContent = mapContainer_ condition.positiveContent
-                    , negativeContent = mapContainer_ condition.negativeContent
-                }
-
-        other ->
-            other
+    updateCurrentComponent updateComponent model
 
 
-mapCondition : (Condition -> Condition) -> Component -> Component
-mapCondition map component =
+updateCondition : Uuid -> (Condition -> Condition) -> Model -> Model
+updateCondition uuid updateFn model =
     let
-        mapContainer_ container =
-            { container | contains = List.map (mapCondition map) container.contains }
+        updateConditionNode node =
+            case node.content of
+                NodeContentCondition condition ->
+                    { node | content = NodeContentCondition (updateFn condition) }
+
+                _ ->
+                    node
+
+        updateComponent component =
+            { component | content = updateNode updateConditionNode uuid component.content }
     in
-    case component of
-        ContainerComponent container ->
-            ContainerComponent <| mapContainer_ container
+    updateCurrentComponent updateComponent model
 
-        IterativeContainerComponent iterativeContainer ->
-            IterativeContainerComponent <|
-                { iterativeContainer | content = mapContainer_ iterativeContainer.content }
 
-        ConditionComponent condition ->
-            ConditionComponent <|
-                map
-                    { condition
-                        | positiveContent = mapContainer_ condition.positiveContent
-                        , negativeContent = mapContainer_ condition.negativeContent
+updateIterativeContainer : Uuid -> (IterativeContainerData -> IterativeContainerData) -> Model -> Model
+updateIterativeContainer uuid updateFn model =
+    let
+        updateIterativeContainerNode node =
+            case node.content of
+                NodeContentIterativeContainer iterativeContainer ->
+                    { node | content = NodeContentIterativeContainer (updateFn iterativeContainer) }
+
+                _ ->
+                    node
+
+        updateComponent component =
+            { component | content = updateNode updateIterativeContainerNode uuid component.content }
+    in
+    updateCurrentComponent updateComponent model
+
+
+updateCurrentComponent : (DataComponent -> DataComponent) -> Model -> Model
+updateCurrentComponent updateFn model =
+    case model.openedDataComponent of
+        Just dataComponent ->
+            let
+                newComponent =
+                    updateFn dataComponent
+            in
+            { model
+                | app = App.updateDataComponent dataComponent.name newComponent model.app
+                , openedDataComponent = Just newComponent
+            }
+
+        Nothing ->
+            model
+
+
+updateNode : (Node -> Node) -> Uuid -> Tree -> Tree
+updateNode updateFn targetUuid =
+    let
+        updateFn_ treeUuid node =
+            if treeUuid == targetUuid then
+                updateFn node
+
+            else
+                node
+    in
+    mapNodes updateFn_
+
+
+mapNodes : (Uuid -> Node -> Node) -> Tree -> Tree
+mapNodes mapNode tree =
+    case tree.content of
+        TreeContentNode node ->
+            case node.content of
+                NodeContentCondition condition ->
+                    { tree
+                        | content =
+                            TreeContentNode
+                                (mapNode tree.uuid
+                                    { node
+                                        | content =
+                                            NodeContentCondition
+                                                { condition
+                                                    | containsPositive = mapNodes mapNode condition.containsPositive
+                                                    , containsNegative = mapNodes mapNode condition.containsNegative
+                                                }
+                                    }
+                                )
                     }
 
-        other ->
-            other
+                _ ->
+                    { tree
+                        | content =
+                            TreeContentNode
+                                (mapNode tree.uuid { node | contains = List.map (mapNodes mapNode) node.contains })
+                    }
+
+        _ ->
+            tree
 
 
-mapContentComponent : (ContentComponent -> ContentComponent) -> Component -> Component
-mapContentComponent map component =
+updateLeaf : (Leaf -> Leaf) -> Uuid -> Tree -> Tree
+updateLeaf updateFn targetUuid =
     let
-        mapContainer_ container =
-            { container | contains = List.map (mapContentComponent map) container.contains }
-    in
-    case component of
-        ContainerComponent container ->
-            ContainerComponent <| mapContainer_ container
-
-        IterativeContainerComponent iterativeContainer ->
-            IterativeContainerComponent <|
-                { iterativeContainer | content = mapContainer_ iterativeContainer.content }
-
-        ConditionComponent condition ->
-            ConditionComponent
-                { condition
-                    | positiveContent = mapContainer_ condition.positiveContent
-                    , negativeContent = mapContainer_ condition.negativeContent
-                }
-
-        ContentComponentComponent contentComponent ->
-            ContentComponentComponent <|
-                map contentComponent
-
-
-mapHelper : Uuid -> ({ a | uuid : Uuid } -> { a | uuid : Uuid }) -> { a | uuid : Uuid } -> { a | uuid : Uuid }
-mapHelper uuid map container =
-    if container.uuid == uuid then
-        map container
-
-    else
-        container
-
-
-moveUp : Uuid -> List Component -> List Component
-moveUp uuid components =
-    let
-        fold current acc =
-            let
-                currentUuid =
-                    Component.getUuid current
-            in
-            if currentUuid == uuid then
-                List.take (List.length acc - 1) acc ++ [ current ] ++ List.drop (List.length acc - 1) acc
+        updateFn_ treeUuid node =
+            if treeUuid == targetUuid then
+                updateFn node
 
             else
-                acc ++ [ current ]
+                node
     in
-    List.foldl fold [] components
+    mapLeaves updateFn_
 
 
-moveDown : Uuid -> List Component -> List Component
-moveDown uuid components =
-    let
-        fold current { swapped, acc } =
-            let
-                length =
-                    List.length acc - 1
+mapLeaves : (Uuid -> Leaf -> Leaf) -> Tree -> Tree
+mapLeaves mapLeaf tree =
+    case tree.content of
+        TreeContentNode node ->
+            case node.content of
+                NodeContentCondition condition ->
+                    { tree
+                        | content =
+                            TreeContentNode
+                                { node
+                                    | content =
+                                        NodeContentCondition
+                                            { condition
+                                                | containsPositive = mapLeaves mapLeaf condition.containsPositive
+                                                , containsNegative = mapLeaves mapLeaf condition.containsNegative
+                                            }
+                                }
+                    }
 
-                start =
-                    List.take length acc
+                _ ->
+                    { tree | content = TreeContentNode { node | contains = List.map (mapLeaves mapLeaf) node.contains } }
 
-                end =
-                    List.drop length acc
-
-                lastUuid =
-                    List.head end
-                        |> Maybe.unwrap Uuid.nil Component.getUuid
-            in
-            if not swapped && lastUuid == uuid then
-                { swapped = True, acc = start ++ [ current ] ++ end }
-
-            else
-                { swapped = swapped, acc = acc ++ [ current ] }
-    in
-    (List.foldl fold { swapped = False, acc = [] } components).acc
-
-
-getComponent : Uuid -> Component -> Maybe Component
-getComponent uuid component =
-    if Component.getUuid component == uuid then
-        Just component
-
-    else
-        let
-            fold : Component -> Maybe Component -> Maybe Component
-            fold comp acc =
-                if Maybe.isJust acc then
-                    acc
-
-                else
-                    getComponent uuid comp
-
-            foldChildren =
-                List.foldl fold Nothing
-        in
-        case component of
-            ContainerComponent container ->
-                foldChildren container.contains
-
-            IterativeContainerComponent iterativeContainer ->
-                if iterativeContainer.content.uuid == uuid then
-                    Just (ContainerComponent iterativeContainer.content)
-
-                else
-                    foldChildren iterativeContainer.content.contains
-
-            ConditionComponent condition ->
-                if condition.positiveContent.uuid == uuid then
-                    Just (ContainerComponent condition.positiveContent)
-
-                else if condition.negativeContent.uuid == uuid then
-                    Just (ContainerComponent condition.negativeContent)
-
-                else
-                    foldChildren condition.positiveContent.contains
-                        |> Maybe.orElse (foldChildren condition.negativeContent.contains)
-
-            ContentComponentComponent _ ->
-                Nothing
+        TreeContentLeaf leaf ->
+            { tree | content = TreeContentLeaf (mapLeaf tree.uuid leaf) }
 
 
 subscriptions : Model -> Sub Msg
@@ -573,450 +447,141 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
+    let
+        content =
+            case model.openedDataComponent of
+                Just dataComponent ->
+                    div [ class "component-data" ]
+                        [ div [] [ strong [] [ text dataComponent.name ] ]
+                        , div [ class "mb-3 d-flex justify-content-between" ]
+                            [ div []
+                                [ a [ onClick ExpandAll, class "text-primary me-2" ] [ text "Expand all" ]
+                                , a [ onClick CollapseAll, class "text-primary" ] [ text "Collapse all" ]
+                                ]
+                            , div []
+                                [ a
+                                    [ onClick (SetDataComponentToDelete (Just dataComponent))
+                                    , class "text-danger"
+                                    ]
+                                    [ fas "fa-trash" [ class "me-1" ]
+                                    , text "Delete"
+                                    ]
+                                ]
+                            ]
+                        , viewDataComponent model dataComponent
+                        ]
+
+                Nothing ->
+                    div [ class "component-data" ]
+                        [ div [ class "alert alert-info" ]
+                            [ fas "fa-arrow-left" [ class "me-2" ]
+                            , text "Open a component or add a new one"
+                            ]
+                        ]
+    in
     div [ class "app-canvas" ]
-        [ div [ class "component-list" ]
-            [ strong [] [ text "Components" ]
-            , ul [ class "fa-ul mt-2" ]
-                [ li []
-                    [ a []
-                        [ span [ class "fa-li" ] [ fas "fa-file-invoice" [] ]
-                        , text "Tralala"
-                        ]
-                    ]
-                , li []
-                    [ a []
-                        [ span [ class "fa-li" ] [ fas "fa-file-invoice" [] ]
-                        , text "Tralala"
-                        ]
-                    ]
-                , li [ class "mt-3" ]
-                    [ a []
-                        [ span [ class "fa-li" ] [ fas "fa-plus" [] ]
-                        , text "Add"
-                        ]
-                    ]
-                ]
-            ]
-        , div [ class "component-data" ]
-            [ div [ class "mb-3" ]
-                [ a [ onClick ExpandAll, class "text-primary me-2" ] [ text "Expand all" ]
-                , a [ onClick CollapseAll, class "text-primary" ] [ text "Collapse all" ]
-                ]
-            , viewApp model
-            , viewMoveModal model
-            ]
+        [ viewComponentList model
+        , content
+        , viewAddDataComponentModal model
+        , viewComponentDeleteModal model
         ]
 
 
-viewApp : Model -> Html Msg
-viewApp model =
+viewComponentList : Model -> Html Msg
+viewComponentList model =
     let
-        rootContainer =
-            case model.app.rootComponent of
-                ContainerComponent container ->
-                    viewContainer model False container
-
-                _ ->
-                    viewComponent model model.app.rootComponent
+        viewDataComponentLink component =
+            li []
+                [ a [ onClick (OpenDataComponent component) ]
+                    [ span [ class "fa-li" ] [ fas "fa-file-invoice" [] ]
+                    , text component.name
+                    ]
+                ]
     in
-    --viewCard { icon = "far fa-window-maximize", label = "App", uuid = Uuid.nil, controls = False }
-    --    model
-    rootContainer
-
-
-viewComponent : Model -> Component -> Html Msg
-viewComponent model component =
-    case component of
-        ContainerComponent container ->
-            viewContainer model True container
-
-        IterativeContainerComponent iterativeContainer ->
-            viewCard { icon = "fas fa-sync-alt", label = "IterativeContainer", uuid = iterativeContainer.uuid, controls = True, copyUuid = False, isBlock = iterativeContainer.isBlock }
-                model
-                [ div [ class "form-group row" ]
-                    [ label
-                        [ class "col-md-2 col-form-label"
-                        ]
-                        [ text "Predicate" ]
-                    , div [ class "col-md-10" ]
-                        [ input
-                            [ type_ "text"
-                            , class "form-control"
-                            , onInput (UpdateIterativeContainerPredicate iterativeContainer.uuid)
-                            , value iterativeContainer.predicate
+    div [ class "component-list" ]
+        [ strong [] [ text "Components" ]
+        , ul [ class "fa-ul mt-2" ]
+            (List.map viewDataComponentLink (List.sortBy .name model.app.components)
+                ++ [ li [ class "mt-3" ]
+                        [ a [ onClick (OpenAddDataComponentModal True) ]
+                            [ span [ class "fa-li" ] [ fas "fa-plus" [] ]
+                            , text "Add"
                             ]
-                            []
                         ]
-                    ]
-                , hr [] []
-                , viewContainer model False iterativeContainer.content
-                ]
-
-        ConditionComponent condition ->
-            viewCard { icon = "fas fa-code-branch", label = "Condition", uuid = condition.uuid, controls = True, copyUuid = False, isBlock = condition.isBlock }
-                model
-                [ div [ class "form-group row mb-2" ]
-                    [ label [ class "col-md-2 col-form-label" ] [ text "Predicate" ]
-                    , div [ class "col-md-10" ]
-                        [ input
-                            [ type_ "text"
-                            , class "form-control"
-                            , onInput (UpdateConditionPredicate condition.uuid)
-                            , value condition.predicate
-                            ]
-                            []
-                        ]
-                    ]
-                , div [ class "form-group row" ]
-                    [ label [ class "col-md-2 col-form-label" ] [ text "Value" ]
-                    , div [ class "col-md-10" ]
-                        [ input
-                            [ type_ "text"
-                            , class "form-control"
-                            , onInput (UpdateConditionValue condition.uuid)
-                            , value condition.value
-                            ]
-                            []
-                        ]
-                    ]
-                , hr [] []
-                , viewContainerWithLabel "Positive Content" model False condition.positiveContent
-                , viewContainerWithLabel "Negative Content" model False condition.negativeContent
-                ]
-
-        ContentComponentComponent contentComponent ->
-            let
-                getComponentIconAndName componentType =
-                    case componentType of
-                        HeadingContentComponentType ->
-                            ( "fas fa-heading", "Heading" )
-
-                        TextContentComponentType ->
-                            ( "fas fa-paragraph", "Text" )
-
-                        StrongContentComponentType ->
-                            ( "fas fa-bold", "Strong" )
-
-                        EmphasisContentComponentType ->
-                            ( "fas fa-italic", "Emphasis" )
-
-                        URLContentComponentType ->
-                            ( "fas fa-link", "URL" )
-
-                        EmailContentComponentType ->
-                            ( "fas fa-at", "Email" )
-
-                        DateContentComponentType ->
-                            ( "fas fa-calendar", "Date" )
-
-                        DateTimeContentComponentType ->
-                            ( "fas fa-calendar-day", "DateTime" )
-
-                        TimeContentComponentType ->
-                            ( "fas fa-clock", "Time" )
-
-                ( componentIcon, componentName ) =
-                    getComponentIconAndName contentComponent.componentType
-
-                typeDropdownId =
-                    "content-type-" ++ Uuid.toString contentComponent.uuid
-
-                typeDropdownState =
-                    Maybe.withDefault Dropdown.initialState <|
-                        Dict.get typeDropdownId model.dropdownStates
-
-                typeDropdownItem componentType =
-                    let
-                        ( icon, label ) =
-                            getComponentIconAndName componentType
-                    in
-                    Dropdown.buttonItem [ onClick (UpdateContentComponentType contentComponent.uuid componentType) ]
-                        [ fa icon [ class "me-2 text-muted fa-fw" ], text label ]
-
-                componentTitleDropdown =
-                    Dropdown.dropdown typeDropdownState
-                        { options = [ Dropdown.attrs [ class "dropdown-text" ] ]
-                        , toggleMsg = DropdownMsg typeDropdownId
-                        , toggleButton =
-                            Dropdown.toggle [ Button.roleLink ]
-                                [ fa componentIcon [ class "me-1 fa-fw" ]
-                                , text componentName
-                                ]
-                        , items =
-                            List.map typeDropdownItem
-                                [ HeadingContentComponentType
-                                , TextContentComponentType
-                                , StrongContentComponentType
-                                , EmphasisContentComponentType
-                                , URLContentComponentType
-                                , EmailContentComponentType
-                                , DateContentComponentType
-                                , DateTimeContentComponentType
-                                , TimeContentComponentType
-                                ]
-                        }
-
-                ( contentValue, toContent ) =
-                    case contentComponent.content of
-                        ContentComponentPredicate value ->
-                            ( value, ContentComponentPredicate )
-
-                        ContentComponentText value ->
-                            ( value, ContentComponentText )
-
-                getContentLabel componentContent =
-                    case componentContent of
-                        ContentComponentPredicate _ ->
-                            "Predicate"
-
-                        ContentComponentText _ ->
-                            "Text"
-
-                contentDropdownId =
-                    "content-content-" ++ Uuid.toString contentComponent.uuid
-
-                contentDropdownState =
-                    Maybe.withDefault Dropdown.initialState <|
-                        Dict.get contentDropdownId model.dropdownStates
-
-                contentDropdownItem content =
-                    let
-                        newContent =
-                            content contentValue
-
-                        label =
-                            getContentLabel newContent
-                    in
-                    Dropdown.buttonItem
-                        [ onClick (UpdateContentComponentContent contentComponent.uuid newContent) ]
-                        [ text label ]
-
-                componentContentLabelDropdown =
-                    Dropdown.dropdown contentDropdownState
-                        { options = [ Dropdown.attrs [ class "dropdown-text" ] ]
-                        , toggleMsg = DropdownMsg contentDropdownId
-                        , toggleButton =
-                            Dropdown.toggle [ Button.roleLink ]
-                                [ text (getContentLabel contentComponent.content) ]
-                        , items = List.map contentDropdownItem [ ContentComponentPredicate, ContentComponentText ]
-                        }
-
-                urlLabelInput =
-                    if contentComponent.componentType == URLContentComponentType then
-                        let
-                            dropdownId =
-                                "url-label-content-" ++ Uuid.toString contentComponent.uuid
-
-                            dropdownState =
-                                Maybe.withDefault Dropdown.initialState <|
-                                    Dict.get dropdownId model.dropdownStates
-
-                            getDropdownLabel componentContent =
-                                case componentContent of
-                                    ContentComponentPredicate _ ->
-                                        "Label Predicate"
-
-                                    ContentComponentText _ ->
-                                        "Label Text"
-
-                            dropdownItem content =
-                                let
-                                    newContent =
-                                        content urlLabelValue
-
-                                    label =
-                                        getDropdownLabel newContent
-                                in
-                                Dropdown.buttonItem
-                                    [ onClick (UpdateContentComponentUrlLabel contentComponent.uuid newContent) ]
-                                    [ text label ]
-
-                            ( urlLabelValue, toUrlLabel ) =
-                                case contentComponent.urlLabel of
-                                    ContentComponentPredicate value ->
-                                        ( value, ContentComponentPredicate )
-
-                                    ContentComponentText value ->
-                                        ( value, ContentComponentText )
-
-                            urlLabelInputDropdown =
-                                Dropdown.dropdown dropdownState
-                                    { options = [ Dropdown.attrs [ class "dropdown-text" ] ]
-                                    , toggleMsg = DropdownMsg dropdownId
-                                    , toggleButton =
-                                        Dropdown.toggle [ Button.roleLink ]
-                                            [ text (getDropdownLabel contentComponent.urlLabel) ]
-                                    , items = List.map dropdownItem [ ContentComponentPredicate, ContentComponentText ]
-                                    }
-                        in
-                        div [ class "form-group row mt-2" ]
-                            [ label
-                                [ class "col-md-2 col-form-label"
-                                ]
-                                [ urlLabelInputDropdown ]
-                            , div [ class "col-md-10" ]
-                                [ input
-                                    [ type_ "text"
-                                    , class "form-control"
-                                    , onInput (UpdateContentComponentUrlLabel contentComponent.uuid << toUrlLabel)
-                                    , value urlLabelValue
-                                    ]
-                                    []
-                                ]
-                            ]
-
-                    else
-                        emptyNode
-            in
-            viewCardExtra { component = componentTitleDropdown, uuid = contentComponent.uuid, controls = True, copyUuid = False, isBlock = contentComponent.isBlock }
-                model
-                [ div [ class "form-group row" ]
-                    [ label
-                        [ class "col-md-2 col-form-label"
-                        ]
-                        [ componentContentLabelDropdown ]
-                    , div [ class "col-md-10" ]
-                        [ input
-                            [ type_ "text"
-                            , class "form-control"
-                            , onInput (UpdateContentComponentContent contentComponent.uuid << toContent)
-                            , value contentValue
-                            ]
-                            []
-                        ]
-                    ]
-                , urlLabelInput
-                ]
+                   ]
+            )
+        ]
 
 
-viewContainer : Model -> Bool -> Container -> Html Msg
-viewContainer =
-    viewContainerWithLabel "Container"
+viewDataComponent : Model -> DataComponent -> Html Msg
+viewDataComponent model dataComponent =
+    div [] [ viewComponent False model dataComponent.content ]
 
 
-viewContainerWithLabel : String -> Model -> Bool -> Container -> Html Msg
-viewContainerWithLabel containerLabel model controls container =
+viewComponent : Bool -> Model -> Tree -> Html Msg
+viewComponent controls model tree =
+    case tree.content of
+        TreeContentLeaf leaf ->
+            viewLeaf model tree.uuid leaf
+
+        TreeContentNode node ->
+            viewNode controls model tree.uuid node
+
+
+viewNode : Bool -> Model -> Uuid -> Node -> Html Msg
+viewNode controls model uuid node =
     let
         dropdownId =
-            "container-" ++ Uuid.toString container.uuid
-
-        children =
-            List.map (viewComponent model) container.contains
+            "node-" ++ Uuid.toString uuid
 
         dropdownState =
             Maybe.withDefault Dropdown.initialState <|
                 Dict.get dropdownId model.dropdownStates
+
+        ( componentIcon, componentName ) =
+            case node.content of
+                NodeContentStrong ->
+                    ( "fas fa-bold", "Strong" )
+
+                NodeContentEmphasis ->
+                    ( "fas fa-italic", "Emphasis" )
+
+                NodeContentHeading ->
+                    ( "fas fa-heading", "Heading" )
+
+                NodeContentCondition _ ->
+                    ( "fas fa-code-branch", "Condition" )
+
+                NodeContentContainer ->
+                    ( "fas fa-th-large", "Container" )
+
+                NodeContentIterativeContainer _ ->
+                    ( "fas fa-sync-alt", "Iterative Container" )
 
         dropdownItem icon label msg =
             Dropdown.buttonItem [ onClick msg ] [ fa icon [ class "me-2 text-muted" ], text label ]
 
         dropdown =
             Dropdown.dropdown dropdownState
-                { options = []
+                { options = [ Dropdown.attrs [ class "dropdown-text" ] ]
                 , toggleMsg = DropdownMsg dropdownId
                 , toggleButton =
-                    Dropdown.toggle [ Button.outlineSecondary, Button.small ]
-                        [ fas "fa-plus" [ class "me-1" ]
-                        , text "Add"
+                    Dropdown.toggle [ Button.roleLink ]
+                        [ fa componentIcon [ class "me-1" ]
+                        , text componentName
                         ]
                 , items =
-                    [ dropdownItem "fas fa-th-large" "Container" (AddContainer container.uuid)
-                    , dropdownItem "fas fa-sync-alt" "IterativeContainer" (AddIterativeContainer container.uuid)
-                    , dropdownItem "fas fa-code-branch" "Condition" (AddCondition container.uuid)
-                    , dropdownItem "far fa-file-alt" "Content" (AddContentComponent container.uuid)
+                    [ dropdownItem "fas fa-th-large" "Container" (UpdateNodeType uuid NodeTypeContainer)
+                    , dropdownItem "fas fa-sync-alt" "Iterative Container" (UpdateNodeType uuid NodeTypeIterativeContainer)
+                    , dropdownItem "fas fa-code-branch" "Condition" (UpdateNodeType uuid NodeTypeCondition)
+                    , dropdownItem "fas fa-bold" "Strong" (UpdateNodeType uuid NodeTypeStrong)
+                    , dropdownItem "fas fa-italic" "Emphasis" (UpdateNodeType uuid NodeTypeEmphasis)
+                    , dropdownItem "fas fa-heading" "Heading" (UpdateNodeType uuid NodeTypeHeading)
                     ]
                 }
-    in
-    viewCard { icon = "fas fa-th-large", label = containerLabel, uuid = container.uuid, controls = controls, copyUuid = True, isBlock = container.isBlock }
-        model
-        (children ++ [ dropdown ])
 
-
-type alias ViewCardConfig =
-    { icon : String
-    , label : String
-    , uuid : Uuid
-    , controls : Bool
-    , copyUuid : Bool
-    , isBlock : Bool
-    }
-
-
-viewCard : ViewCardConfig -> Model -> List (Html Msg) -> Html Msg
-viewCard { icon, label, uuid, controls, copyUuid, isBlock } =
-    viewCardExtra
-        { component =
-            div []
-                [ fa icon [ class "me-1 fa-fw" ]
-                , text label
-                ]
-        , uuid = uuid
-        , controls = controls
-        , copyUuid = copyUuid
-        , isBlock = isBlock
-        }
-
-
-type alias ViewCardExtraConfig =
-    { component : Html Msg
-    , uuid : Uuid
-    , controls : Bool
-    , copyUuid : Bool
-    , isBlock : Bool
-    }
-
-
-viewCardExtra : ViewCardExtraConfig -> Model -> List (Html Msg) -> Html Msg
-viewCardExtra { component, uuid, controls, copyUuid, isBlock } model content =
-    let
-        isCollapsed =
-            Set.member (Uuid.toString uuid) model.collapsedComponents
-
-        moveButton =
-            a [ onClick (MoveModalSetUuid (Just uuid)), class "text-primary ms-3" ]
-                [ fas "fa-reply" [] ]
-
-        moveUpButton =
-            a [ onClick (MoveComponentUp uuid), class "text-primary ms-3" ]
-                [ fas "fa-arrow-up" [] ]
-
-        moveDownButton =
-            a [ onClick (MoveComponentDown uuid), class "text-primary ms-3" ]
-                [ fas "fa-arrow-down" [] ]
-
-        deleteButton =
-            a [ onClick (DeleteComponent uuid), class "text-danger ms-3" ]
-                [ fas "fa-trash" [] ]
-
-        collapseButton =
-            if isCollapsed then
-                a [ onClick (ExpandComponent uuid), class "text-primary me-3" ] [ fas "fa-chevron-right fa-fw" [] ]
-
-            else
-                a [ onClick (CollapseComponent uuid), class "text-primary me-3" ] [ fas "fa-chevron-down fa-fw" [] ]
-
-        copyUuidButton =
-            if copyUuid then
-                a [ class "text-muted small", onClick (CopyUuid uuid) ]
-                    [ far "fa-copy me-1" []
-                    , text (Maybe.withDefault "uuid" (List.head (String.split "-" (Uuid.toString uuid))))
-                    ]
-
-            else
-                emptyNode
-
-        controlButtons =
-            if controls then
-                div []
-                    [ copyUuidButton
-                    , moveButton
-                    , moveUpButton
-                    , moveDownButton
-                    , deleteButton
-                    ]
-
-            else
-                div [] [ copyUuidButton ]
+        isBlock =
+            node.isBlock
 
         blockCheckbox =
             label [ class "ms-3 cursor-pointer" ]
@@ -1024,54 +589,303 @@ viewCardExtra { component, uuid, controls, copyUuid, isBlock } model content =
                 , text "Block"
                 ]
 
+        viewContentComponents =
+            [ div [] (List.map (viewComponent True model) (sortTrees node.contains))
+            , div [ class "mt-3" ]
+                [ button [ class "btn btn-outline-secondary btn-sm me-2", onClick (AddNode uuid) ] [ text "Add node" ]
+                , button [ class "btn btn-outline-secondary btn-sm", onClick (AddLeaf uuid) ] [ text "Add leaf" ]
+                ]
+            ]
+
         body =
-            if Set.member (Uuid.toString uuid) model.collapsedComponents then
+            case node.content of
+                NodeContentCondition condition ->
+                    [ viewInput { label = "Predicate", value = condition.predicate, onInput = UpdateConditionPredicate uuid }
+                    , viewInput { label = "Value", value = condition.value, onInput = UpdateConditionValue uuid }
+                    , hr [] []
+                    , strong [ class "d-block mb-1" ] [ text "Positive Content" ]
+                    , viewComponent False model condition.containsPositive
+                    , hr [] []
+                    , strong [ class "d-block mb-1" ] [ text "Negative Content" ]
+                    , viewComponent False model condition.containsNegative
+                    ]
+
+                NodeContentIterativeContainer ic ->
+                    [ viewInput { label = "Predicate", value = ic.predicate, onInput = UpdateIterativeContainerPredicate uuid }
+                    , hr [] []
+                    ]
+                        ++ viewContentComponents
+
+                _ ->
+                    viewContentComponents
+    in
+    viewCard model
+        { uuid = uuid
+        , controls = controls
+        , header = [ dropdown, blockCheckbox ]
+        , body = body
+        }
+
+
+viewLeaf : Model -> Uuid -> Leaf -> Html Msg
+viewLeaf model uuid leaf =
+    let
+        dropdownId =
+            "leaf-" ++ Uuid.toString uuid
+
+        dropdownState =
+            Maybe.withDefault Dropdown.initialState <|
+                Dict.get dropdownId model.dropdownStates
+
+        ( componentIcon, componentName ) =
+            case leaf.content of
+                LeafContentContent _ ->
+                    ( "fas fa-align-left", "Content" )
+
+                LeafContentDataComponentWrapper _ ->
+                    ( "fas fa-box", "Data Component" )
+
+        dropdownItem icon label msg =
+            Dropdown.buttonItem [ onClick msg ] [ fa icon [ class "me-2 text-muted" ], text label ]
+
+        dropdown =
+            Dropdown.dropdown dropdownState
+                { options = [ Dropdown.attrs [ class "dropdown-text" ] ]
+                , toggleMsg = DropdownMsg dropdownId
+                , toggleButton =
+                    Dropdown.toggle [ Button.roleLink ]
+                        [ fa componentIcon [ class "me-1" ]
+                        , text componentName
+                        ]
+                , items =
+                    [ dropdownItem "fas fa-align-left" "Content" (UpdateLeafType uuid LeafTypeContent)
+                    , dropdownItem "fas fa-box" "Data Component" (UpdateLeafType uuid LeafTypeDataComponentWrapper)
+                    ]
+                }
+
+        body =
+            case leaf.content of
+                LeafContentContent leafContent ->
+                    let
+                        sourceDropdownId =
+                            "leaf-source-" ++ Uuid.toString uuid
+
+                        sourceDropdownState =
+                            Maybe.withDefault Dropdown.initialState <|
+                                Dict.get sourceDropdownId model.dropdownStates
+
+                        ( sourceLabel, sourceValue, toSource ) =
+                            case leafContent.contentSource of
+                                LeafContentSourcePredicate value ->
+                                    ( "Predicate", value, LeafContentSourcePredicate )
+
+                                LeafContentSourceText value ->
+                                    ( "Text", value, LeafContentSourceText )
+
+                        sourceDropdownItem label contentSource =
+                            Dropdown.buttonItem
+                                [ onClick (UpdateLeafContentSource uuid (contentSource sourceValue)) ]
+                                [ text label ]
+
+                        sourceDropdown =
+                            Dropdown.dropdown sourceDropdownState
+                                { options = [ Dropdown.attrs [ class "dropdown-text" ] ]
+                                , toggleMsg = DropdownMsg sourceDropdownId
+                                , toggleButton =
+                                    Dropdown.toggle [ Button.roleLink ]
+                                        [ text sourceLabel ]
+                                , items =
+                                    [ sourceDropdownItem "Predicate" LeafContentSourcePredicate
+                                    , sourceDropdownItem "Text" LeafContentSourceText
+                                    ]
+                                }
+
+                        viewContentOption contentContent =
+                            option
+                                [ value (contentContentToString contentContent)
+                                , selected (contentContent == leafContent.content)
+                                ]
+                                [ text (contentContentToString contentContent) ]
+
+                        contentOptions =
+                            [ ContentContent
+                            , ContentDate
+                            , ContentDateTime
+                            , ContentTime
+                            , ContentEmail
+                            , ContentUrl
+                            ]
+                    in
+                    [ div [ class "form-group row mb-2" ]
+                        [ label [ class "col-md-2 col-form-label" ] [ text "Content" ]
+                        , div [ class "col-md-10" ]
+                            [ select
+                                [ class "form-control"
+                                , value (contentContentToString leafContent.content)
+                                , onInput (UpdateLeafContentContent uuid)
+                                ]
+                                (List.map viewContentOption contentOptions)
+                            ]
+                        ]
+                    , div [ class "form-group row mb-2" ]
+                        [ label [ class "col-md-2 col-form-label" ] [ sourceDropdown ]
+                        , div [ class "col-md-10" ]
+                            [ input
+                                [ type_ "text"
+                                , class "form-control"
+                                , onInput (UpdateLeafContentSource uuid << toSource)
+                                , value sourceValue
+                                ]
+                                []
+                            ]
+                        ]
+                    ]
+
+                LeafContentDataComponentWrapper dataComponent ->
+                    [ viewInput { label = "Predicate", value = dataComponent.predicate, onInput = UpdateDataComponentPredicate uuid }
+                    , viewInput { label = "IRI", value = dataComponent.dataComponent, onInput = UpdateDataComponentDataComponent uuid }
+                    ]
+    in
+    viewCard model
+        { uuid = uuid
+        , controls = True
+        , header = [ dropdown ]
+        , body = body
+        }
+
+
+type alias ViewCardConfig =
+    { uuid : Uuid
+    , controls : Bool
+    , header : List (Html Msg)
+    , body : List (Html Msg)
+    }
+
+
+viewCard : Model -> ViewCardConfig -> Html Msg
+viewCard model cfg =
+    let
+        isCollapsed =
+            Set.member (Uuid.toString cfg.uuid) model.collapsedComponents
+
+        collapseButton =
+            if isCollapsed then
+                a [ onClick (ExpandComponent cfg.uuid), class "text-primary me-3" ] [ fas "fa-chevron-right fa-fw" [] ]
+
+            else
+                a [ onClick (CollapseComponent cfg.uuid), class "text-primary me-3" ] [ fas "fa-chevron-down fa-fw" [] ]
+
+        deleteButton =
+            a [ onClick (DeleteTree cfg.uuid), class "text-danger ms-3" ]
+                [ fas "fa-trash" [] ]
+
+        controlButtons =
+            if cfg.controls then
+                div [] [ deleteButton ]
+
+            else
+                emptyNode
+
+        body =
+            if isCollapsed then
                 emptyNode
 
             else
-                div [ class "card-body" ] content
+                div [ class "card-body" ] cfg.body
     in
     div [ class "card" ]
         [ div [ class "card-header d-flex justify-content-between" ]
-            [ div [ class "d-flex align-items-end" ] [ collapseButton, component, blockCheckbox ]
+            [ div [] (collapseButton :: cfg.header)
             , controlButtons
             ]
         , body
         ]
 
 
-viewMoveModal : Model -> Html Msg
-viewMoveModal model =
+type alias ViewInputConfig =
+    { label : String
+    , value : String
+    , onInput : String -> Msg
+    }
+
+
+viewInput : ViewInputConfig -> Html Msg
+viewInput cfg =
+    div [ class "form-group row mb-2" ]
+        [ label [ class "col-md-2 col-form-label" ] [ text cfg.label ]
+        , div [ class "col-md-10" ]
+            [ input
+                [ type_ "text"
+                , class "form-control"
+                , onInput cfg.onInput
+                , value cfg.value
+                ]
+                []
+            ]
+        ]
+
+
+
+---
+
+
+viewAddDataComponentModal : Model -> Html Msg
+viewAddDataComponentModal model =
     let
         errorBlock =
-            case model.moveModalError of
+            case model.addComponentModalError of
                 Just error ->
                     div [ class "text-danger mb-3" ] [ text error ]
 
                 Nothing ->
                     emptyNode
     in
-    div [ class "modal fade", classList [ ( "show", Maybe.isJust model.moveModalUuid ) ] ]
+    div [ class "modal fade", classList [ ( "show", model.addComponentModalOpen ) ] ]
         [ div [ class "modal-dialog modal-dialog-centered" ]
             [ div [ class "modal-content" ]
                 [ div [ class "modal-header" ]
-                    [ h5 [ class "modal-title" ] [ text "Move" ] ]
+                    [ h5 [ class "modal-title" ] [ text "New Component" ] ]
                 , div [ class "modal-body" ]
                     [ errorBlock
-                    , label [] [ text "New parent UUID" ]
+                    , label [] [ text "Name" ]
                     , div []
                         [ input
                             [ type_ "text"
                             , class "form-control"
-                            , onInput MoveModalSetValue
-                            , value model.moveModalValue
+                            , onInput AddDataComponentModalInput
+                            , value model.addComponentModalValue
                             ]
                             []
                         ]
                     ]
                 , div [ class "modal-footer justify-content-between" ]
-                    [ button [ class "btn btn-secondary", onClick (MoveModalSetUuid Nothing) ] [ text "Cancel" ]
-                    , button [ class "btn btn-primary", onClick MoveModalConfirm ] [ text "Move" ]
+                    [ button [ class "btn btn-secondary", onClick (OpenAddDataComponentModal False) ] [ text "Cancel" ]
+                    , button [ class "btn btn-primary", onClick AddDataComponent ] [ text "Add" ]
+                    ]
+                ]
+            ]
+        ]
+
+
+viewComponentDeleteModal : Model -> Html Msg
+viewComponentDeleteModal model =
+    let
+        componentName =
+            Maybe.unwrap "" .name model.dataComponentToDelete
+    in
+    div [ class "modal fade", classList [ ( "show", Maybe.isJust model.dataComponentToDelete ) ] ]
+        [ div [ class "modal-dialog modal-dialog-centered" ]
+            [ div [ class "modal-content" ]
+                [ div [ class "modal-header" ]
+                    [ h5 [ class "modal-title" ] [ text "Delete Component" ] ]
+                , div [ class "modal-body" ]
+                    [ text "Are you sure you want to delete "
+                    , strong [] [ text componentName ]
+                    , text "?"
+                    ]
+                , div [ class "modal-footer justify-content-between" ]
+                    [ button [ class "btn btn-secondary", onClick (SetDataComponentToDelete Nothing) ] [ text "Cancel" ]
+                    , button [ class "btn btn-danger", onClick (DeleteDataComponent componentName) ] [ text "Delete" ]
                     ]
                 ]
             ]

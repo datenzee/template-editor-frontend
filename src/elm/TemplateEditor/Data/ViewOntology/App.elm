@@ -5,8 +5,8 @@ import Json.Decode.Pipeline as D
 import Json.Encode as E
 import Random exposing (Seed)
 import Rdf
-import TemplateEditor.Data.DUIO.Prefixes as Prefixes
 import TemplateEditor.Data.ViewOntology.Component exposing (DataComponent, dataComponentDecoder, dataComponentToRdf, encodeDataComponent, initDataComponent)
+import TemplateEditor.Data.ViewOntology.Prefixes as Prefixes
 
 
 type alias App =

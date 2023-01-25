@@ -21,7 +21,7 @@ import TemplateEditor.Api.TemplateEditor.Data.TemplateEditorDetail exposing (Tem
 import TemplateEditor.Api.TemplateEditor.TemplateEditors as TemplateEditors
 import TemplateEditor.Data.AppState exposing (AppState)
 import TemplateEditor.Data.ViewOntology.App as App
-import TemplateEditor.Pages.TemplateEditor.Canvas2 as Canvas
+import TemplateEditor.Pages.TemplateEditor.Canvas as Canvas
 import TemplateEditor.Ports as Ports
 
 
@@ -72,6 +72,8 @@ type Msg
     | CopyToClipboard
     | SetRightView RightView
     | UpdateDataUrl String
+    | UpdateRootComponent String
+    | UpdateExpanderType String
 
 
 update : AppState -> Msg -> Model -> ( Seed, Model, Cmd Msg )
@@ -79,6 +81,25 @@ update appState msg model =
     let
         withSeed ( m, c ) =
             ( appState.seed, m, c )
+
+        updateValue newValue setValue =
+            withSeed <|
+                case model.templateEditor of
+                    ActionResult.Success templateEditor ->
+                        let
+                            value =
+                                if String.isEmpty newValue then
+                                    Nothing
+
+                                else
+                                    Just newValue
+                        in
+                        ( { model | templateEditor = ActionResult.Success (setValue templateEditor value) }
+                        , Cmd.none
+                        )
+
+                    _ ->
+                        ( model, Cmd.none )
     in
     case msg of
         GetTemplateEditorComplete result ->
@@ -210,23 +231,13 @@ update appState msg model =
             withSeed ( { model | rightView = rightView }, Cmd.none )
 
         UpdateDataUrl newDataUrl ->
-            withSeed <|
-                case model.templateEditor of
-                    ActionResult.Success templateEditor ->
-                        let
-                            dataUrl =
-                                if String.isEmpty newDataUrl then
-                                    Nothing
+            updateValue newDataUrl (\te v -> { te | dataUrl = v })
 
-                                else
-                                    Just newDataUrl
-                        in
-                        ( { model | templateEditor = ActionResult.Success { templateEditor | dataUrl = dataUrl } }
-                        , Cmd.none
-                        )
+        UpdateRootComponent newRootComponent ->
+            updateValue newRootComponent (\te v -> { te | rootComponent = v })
 
-                    _ ->
-                        ( model, Cmd.none )
+        UpdateExpanderType newExpanderType ->
+            updateValue newExpanderType (\te v -> { te | expanderType = v })
 
 
 subscriptions : Model -> Sub Msg
@@ -348,9 +359,17 @@ view model =
                 , hr [] []
                 , div [ class "row" ]
                     [ div [ class "col-6" ]
-                        [ div [ class "form-group row mb-3" ]
-                            [ label [ class "col-md-1 col-form-label" ] [ text "DataURL" ]
-                            , div [ class "col-md-11" ] [ input [ class "form-control", value (Maybe.withDefault "" editor.dataUrl), onInput UpdateDataUrl ] [] ]
+                        [ div [ class "form-group row mb-1" ]
+                            [ label [ class "col-md-2 col-form-label" ] [ text "Data URL" ]
+                            , div [ class "col-md-10" ] [ input [ class "form-control", value (Maybe.withDefault "" editor.dataUrl), onInput UpdateDataUrl ] [] ]
+                            ]
+                        , div [ class "form-group row mb-1" ]
+                            [ label [ class "col-md-2 col-form-label" ] [ text "Root Component" ]
+                            , div [ class "col-md-10" ] [ input [ class "form-control", value (Maybe.withDefault "" editor.rootComponent), onInput UpdateRootComponent ] [] ]
+                            ]
+                        , div [ class "form-group row mb-3" ]
+                            [ label [ class "col-md-2 col-form-label" ] [ text "Expander Type" ]
+                            , div [ class "col-md-10" ] [ input [ class "form-control", value (Maybe.withDefault "" editor.expanderType), onInput UpdateExpanderType ] [] ]
                             ]
                         , canvas
                         ]
