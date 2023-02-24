@@ -30,6 +30,8 @@ type alias ToRdfConfig =
     { basePrefix : String
     , license : String
     , time : Time.Posix
+    , userName : String
+    , userEmail : String
     }
 
 
@@ -39,6 +41,7 @@ toRdf app cfg =
         prefixes =
             List.map Rdf.prefixToString
                 [ Prefixes.dctPrefix
+                , Prefixes.foafPrefix
                 , Prefixes.owlPrefix
                 , Prefixes.rdfPrefix
                 , Prefixes.rdfsPrefix
@@ -54,6 +57,8 @@ toRdf app cfg =
                 (dataComponentToRdf
                     { license = cfg.license
                     , time = cfg.time
+                    , userName = cfg.userName
+                    , userEmail = cfg.userEmail
                     }
                 )
                 app.components

@@ -5,7 +5,7 @@ import Json.Decode.Pipeline as D
 import Json.Encode as E
 import Random exposing (Seed)
 import Rdf
-import TemplateEditor.Data.ViewOntology.Prefixes exposing (base, dct, owl, rdf, vo)
+import TemplateEditor.Data.ViewOntology.Prefixes exposing (base, dct, foaf, owl, rdf, rdfs, vo)
 import Time exposing (Month(..))
 import Uuid exposing (Uuid)
 
@@ -47,6 +47,8 @@ encodeDataComponent data =
 type alias ToRdfConfig =
     { license : String
     , time : Time.Posix
+    , userName : String
+    , userEmail : String
     }
 
 
@@ -60,16 +62,27 @@ dataComponentToRdf cfg dataComponent =
             Rdf.createNode (base dataComponent.name)
                 |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
                 |> Rdf.addPredicate (rdf "type") (vo "DataComponent")
+                |> Rdf.addPredicate (rdf "type") (rdfs "Resource")
+                |> Rdf.addPredicate (foaf "maker") (base agentName)
                 |> Rdf.addPredicateLiteral (vo "dataComponentName") dataComponent.name
                 |> Rdf.addPredicate (vo "dataComponentContent") (rdfIdentifier dataComponent.content)
                 |> Rdf.addPredicateIRI (dct "license") cfg.license
                 |> Rdf.addPredicateLiteral (dct "created") (created cfg.time)
                 |> Rdf.nodeToString
 
+        agentName =
+            dataComponent.name ++ "_Maker"
+
+        agentRdf =
+            Rdf.createNode (base agentName)
+                |> Rdf.addPredicateLiteral (foaf "mbox") cfg.userEmail
+                |> Rdf.addPredicateLiteral (foaf "name") cfg.userName
+                |> Rdf.nodeToString
+
         contentRdf =
             treeToRdf 0 dataComponent.content
     in
-    comment ++ componentRdf ++ contentRdf
+    comment ++ componentRdf ++ agentRdf ++ contentRdf
 
 
 created : Time.Posix -> String

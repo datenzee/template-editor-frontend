@@ -48,6 +48,11 @@ rdfsPrefix =
     Rdf.createPrefix "rdfs" "http://www.w3.org/2000/01/rdf-schema#"
 
 
+rdfs : String -> String
+rdfs =
+    Rdf.usePrefix rdfsPrefix
+
+
 dctPrefix : Rdf.Prefix
 dctPrefix =
     Rdf.createPrefix "dct" "http://purl.org/dc/terms/"
@@ -56,6 +61,16 @@ dctPrefix =
 dct : String -> String
 dct =
     Rdf.usePrefix dctPrefix
+
+
+foafPrefix : Rdf.Prefix
+foafPrefix =
+    Rdf.createPrefix "foaf" "http://xmlns.com/foaf/0.1/"
+
+
+foaf : String -> String
+foaf =
+    Rdf.usePrefix foafPrefix
 
 
 basePrefix : Rdf.Prefix

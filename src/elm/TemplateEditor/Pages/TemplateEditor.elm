@@ -20,6 +20,7 @@ import TemplateEditor.Api.TemplateEditor.Data.PublishResult exposing (PublishRes
 import TemplateEditor.Api.TemplateEditor.Data.TemplateEditorDetail exposing (TemplateEditorDetail)
 import TemplateEditor.Api.TemplateEditor.TemplateEditors as TemplateEditors
 import TemplateEditor.Data.AppState exposing (AppState)
+import TemplateEditor.Data.UserInfo as UserInfo
 import TemplateEditor.Data.ViewOntology.App as App exposing (ToRdfConfig)
 import TemplateEditor.Pages.TemplateEditor.Canvas as Canvas
 import TemplateEditor.Ports as Ports
@@ -41,6 +42,8 @@ getToRdfConfig appState model =
     { basePrefix = Maybe.withDefault "" (ActionResult.unwrap Nothing .baseUrl model.templateEditor)
     , license = Maybe.withDefault "" (ActionResult.unwrap Nothing .license model.templateEditor)
     , time = appState.currentTime
+    , userEmail = Maybe.unwrap "" .email appState.session.user
+    , userName = Maybe.unwrap "" UserInfo.fullName appState.session.user
     }
 
 

@@ -3,6 +3,7 @@ module TemplateEditor.Data.UserInfo exposing
     , decoder
     , encode
     , fromUser
+    , fullName
     )
 
 import Json.Decode as D exposing (Decoder)
@@ -22,6 +23,11 @@ type alias UserInfo =
     , permissions : List String
     , imageUrl : Maybe String
     }
+
+
+fullName : UserInfo -> String
+fullName userInfo =
+    userInfo.firstName ++ " " ++ userInfo.lastName
 
 
 decoder : Decoder UserInfo
