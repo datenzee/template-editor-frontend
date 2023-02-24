@@ -7,6 +7,7 @@ import Random exposing (Seed)
 import Rdf
 import TemplateEditor.Data.ViewOntology.Component exposing (DataComponent, dataComponentDecoder, dataComponentToRdf, encodeDataComponent, initDataComponent)
 import TemplateEditor.Data.ViewOntology.Prefixes as Prefixes
+import Time
 
 
 type alias App =
@@ -25,24 +26,37 @@ encode app =
         [ ( "components", E.list encodeDataComponent app.components ) ]
 
 
-toRdf : App -> String
-toRdf app =
+type alias ToRdfConfig =
+    { basePrefix : String
+    , license : String
+    , time : Time.Posix
+    }
+
+
+toRdf : App -> ToRdfConfig -> String
+toRdf app cfg =
     let
         prefixes =
             List.map Rdf.prefixToString
-                [ Prefixes.voPrefix
+                [ Prefixes.dctPrefix
                 , Prefixes.owlPrefix
                 , Prefixes.rdfPrefix
-                , Prefixes.xmlPrefix
-                , Prefixes.xsdPrefix
                 , Prefixes.rdfsPrefix
-                , Prefixes.basePrefix
+                , Prefixes.voPrefix
+                , Prefixes.xsdPrefix
+                , Rdf.createPrefix "" (cfg.basePrefix ++ "#")
                 ]
-                ++ [ "@base <http://example.com> ." ]
+                ++ [ "@base <" ++ cfg.basePrefix ++ "> ." ]
                 |> String.join "\n"
 
         dataComponents =
-            List.map dataComponentToRdf app.components
+            List.map
+                (dataComponentToRdf
+                    { license = cfg.license
+                    , time = cfg.time
+                    }
+                )
+                app.components
                 |> String.join "\n"
     in
     prefixes ++ "\n\n\n" ++ dataComponents

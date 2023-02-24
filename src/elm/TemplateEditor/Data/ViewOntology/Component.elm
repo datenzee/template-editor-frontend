@@ -5,7 +5,8 @@ import Json.Decode.Pipeline as D
 import Json.Encode as E
 import Random exposing (Seed)
 import Rdf
-import TemplateEditor.Data.ViewOntology.Prefixes exposing (base, owl, rdf, vo)
+import TemplateEditor.Data.ViewOntology.Prefixes exposing (base, dct, owl, rdf, vo)
+import Time exposing (Month(..))
 import Uuid exposing (Uuid)
 
 
@@ -43,8 +44,14 @@ encodeDataComponent data =
         ]
 
 
-dataComponentToRdf : DataComponent -> String
-dataComponentToRdf dataComponent =
+type alias ToRdfConfig =
+    { license : String
+    , time : Time.Posix
+    }
+
+
+dataComponentToRdf : ToRdfConfig -> DataComponent -> String
+dataComponentToRdf cfg dataComponent =
     let
         comment =
             "# " ++ dataComponent.name ++ " " ++ String.join "" (List.repeat 50 "-") ++ "\n"
@@ -55,12 +62,72 @@ dataComponentToRdf dataComponent =
                 |> Rdf.addPredicate (rdf "type") (vo "DataComponent")
                 |> Rdf.addPredicateLiteral (vo "dataComponentName") dataComponent.name
                 |> Rdf.addPredicate (vo "dataComponentContent") (rdfIdentifier dataComponent.content)
+                |> Rdf.addPredicateIRI (dct "license") cfg.license
+                |> Rdf.addPredicateLiteral (dct "created") (created cfg.time)
                 |> Rdf.nodeToString
 
         contentRdf =
             treeToRdf 0 dataComponent.content
     in
     comment ++ componentRdf ++ contentRdf
+
+
+created : Time.Posix -> String
+created time =
+    let
+        toString =
+            String.padLeft 2 '0' << String.fromInt
+
+        monthToInt month =
+            case month of
+                Jan ->
+                    1
+
+                Feb ->
+                    2
+
+                Mar ->
+                    3
+
+                Apr ->
+                    4
+
+                May ->
+                    5
+
+                Jun ->
+                    6
+
+                Jul ->
+                    7
+
+                Aug ->
+                    8
+
+                Sep ->
+                    9
+
+                Oct ->
+                    10
+
+                Nov ->
+                    11
+
+                Dec ->
+                    12
+    in
+    String.fromInt (Time.toYear Time.utc time)
+        ++ "-"
+        ++ toString (monthToInt (Time.toMonth Time.utc time))
+        ++ "-"
+        ++ toString (Time.toDay Time.utc time)
+        ++ "T"
+        ++ toString (Time.toHour Time.utc time)
+        ++ ":"
+        ++ toString (Time.toMinute Time.utc time)
+        ++ ":"
+        ++ toString (Time.toSecond Time.utc time)
+        ++ "Z"
 
 
 type alias Tree =

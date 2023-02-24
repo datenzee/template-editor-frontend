@@ -19,6 +19,8 @@ type alias TemplateEditorDetail =
     , dataUrl : Maybe String
     , rootComponent : Maybe String
     , expanderType : Maybe String
+    , baseUrl : Maybe String
+    , license : Maybe String
     }
 
 
@@ -45,6 +47,8 @@ decoder =
         |> D.optional "data_url" (D.maybe D.string) Nothing
         |> D.optional "root_component" (D.maybe D.string) Nothing
         |> D.optional "expander_type" (D.maybe D.string) Nothing
+        |> D.optional "base_url" (D.maybe D.string) Nothing
+        |> D.optional "license" (D.maybe D.string) Nothing
 
 
 encode : TemplateEditorDetail -> E.Value
@@ -56,4 +60,6 @@ encode templateEditor =
         , ( "data_url", E.maybe E.string templateEditor.dataUrl )
         , ( "root_component", E.maybe E.string templateEditor.rootComponent )
         , ( "expander_type", E.maybe E.string templateEditor.expanderType )
+        , ( "base_url", E.maybe E.string templateEditor.baseUrl )
+        , ( "license", E.maybe E.string templateEditor.license )
         ]

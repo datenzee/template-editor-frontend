@@ -20,7 +20,7 @@ import TemplateEditor.Api.TemplateEditor.Data.PublishResult exposing (PublishRes
 import TemplateEditor.Api.TemplateEditor.Data.TemplateEditorDetail exposing (TemplateEditorDetail)
 import TemplateEditor.Api.TemplateEditor.TemplateEditors as TemplateEditors
 import TemplateEditor.Data.AppState exposing (AppState)
-import TemplateEditor.Data.ViewOntology.App as App
+import TemplateEditor.Data.ViewOntology.App as App exposing (ToRdfConfig)
 import TemplateEditor.Pages.TemplateEditor.Canvas as Canvas
 import TemplateEditor.Ports as Ports
 
@@ -33,6 +33,14 @@ type alias Model =
     , canvasModel : Maybe Canvas.Model
     , rightView : RightView
     , previewUrl : ActionResult String
+    }
+
+
+getToRdfConfig : AppState -> Model -> ToRdfConfig
+getToRdfConfig appState model =
+    { basePrefix = Maybe.withDefault "" (ActionResult.unwrap Nothing .baseUrl model.templateEditor)
+    , license = Maybe.withDefault "" (ActionResult.unwrap Nothing .license model.templateEditor)
+    , time = appState.currentTime
     }
 
 
@@ -74,6 +82,8 @@ type Msg
     | UpdateDataUrl String
     | UpdateRootComponent String
     | UpdateExpanderType String
+    | UpdateBaseUrl String
+    | UpdateLicense String
 
 
 update : AppState -> Msg -> Model -> ( Seed, Model, Cmd Msg )
@@ -164,7 +174,7 @@ update appState msg model =
             withSeed <|
                 let
                     rdf =
-                        Maybe.unwrap "" (App.toRdf << .app) model.canvasModel
+                        Maybe.unwrap "" (\cm -> App.toRdf cm.app (getToRdfConfig appState model)) model.canvasModel
 
                     cmd =
                         TemplateEditors.publish appState model.id rdf PublishComplete
@@ -217,7 +227,7 @@ update appState msg model =
                     Just canvasModel ->
                         let
                             rdf =
-                                App.toRdf canvasModel.app
+                                App.toRdf canvasModel.app (getToRdfConfig appState model)
 
                             cmd =
                                 Ports.copyToClipboard rdf
@@ -239,6 +249,12 @@ update appState msg model =
         UpdateExpanderType newExpanderType ->
             updateValue newExpanderType (\te v -> { te | expanderType = v })
 
+        UpdateBaseUrl newBaseUrl ->
+            updateValue newBaseUrl (\te v -> { te | baseUrl = v })
+
+        UpdateLicense newLicense ->
+            updateValue newLicense (\te v -> { te | license = v })
+
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -250,8 +266,8 @@ subscriptions model =
             Sub.none
 
 
-view : Model -> Html Msg
-view model =
+view : AppState -> Model -> Html Msg
+view appState model =
     case model.templateEditor of
         ActionResult.Unset ->
             emptyNode
@@ -310,7 +326,7 @@ view model =
                 rdfView =
                     case model.canvasModel of
                         Just canvasModel ->
-                            viewRDF canvasModel
+                            viewRDF appState model canvasModel
 
                         Nothing ->
                             emptyNode
@@ -367,9 +383,17 @@ view model =
                             [ label [ class "col-md-2 col-form-label" ] [ text "Root Component" ]
                             , div [ class "col-md-10" ] [ input [ class "form-control", value (Maybe.withDefault "" editor.rootComponent), onInput UpdateRootComponent ] [] ]
                             ]
-                        , div [ class "form-group row mb-3" ]
+                        , div [ class "form-group row mb-1" ]
                             [ label [ class "col-md-2 col-form-label" ] [ text "Expander Type" ]
                             , div [ class "col-md-10" ] [ input [ class "form-control", value (Maybe.withDefault "" editor.expanderType), onInput UpdateExpanderType ] [] ]
+                            ]
+                        , div [ class "form-group row mb-1" ]
+                            [ label [ class "col-md-2 col-form-label" ] [ text "Base URL" ]
+                            , div [ class "col-md-10" ] [ input [ class "form-control", value (Maybe.withDefault "" editor.baseUrl), onInput UpdateBaseUrl ] [] ]
+                            ]
+                        , div [ class "form-group row mb-3" ]
+                            [ label [ class "col-md-2 col-form-label" ] [ text "License" ]
+                            , div [ class "col-md-10" ] [ input [ class "form-control", value (Maybe.withDefault "" editor.license), onInput UpdateLicense ] [] ]
                             ]
                         , canvas
                         ]
@@ -433,11 +457,11 @@ viewPreview model =
             div [ class "alert alert-info" ] [ text "There is no preview URL yet." ]
 
 
-viewRDF : Canvas.Model -> Html Msg
-viewRDF canvasModel =
+viewRDF : AppState -> Model -> Canvas.Model -> Html Msg
+viewRDF appState model canvasModel =
     let
         content =
-            App.toRdf canvasModel.app
+            App.toRdf canvasModel.app (getToRdfConfig appState model)
     in
     textarea [ class "form-control code-preview", readonly True ]
         [ text content ]

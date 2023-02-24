@@ -6,6 +6,7 @@ import Browser.Navigation as Navigation exposing (Key)
 import Html exposing (div, text)
 import Http
 import Json.Decode as D
+import Task
 import Task.Extra as Task
 import TemplateEditor.Api.DSW.Data.Token exposing (Token)
 import TemplateEditor.Api.DSW.Data.User exposing (User)
@@ -22,6 +23,7 @@ import TemplateEditor.Pages.TemplateEditor as TemplateEditor
 import TemplateEditor.Ports as Ports
 import TemplateEditor.Routes as Routes
 import TemplateEditor.Routing as Routing
+import Time
 import Url exposing (Url)
 
 
@@ -72,9 +74,12 @@ init flags location key =
             else
                 Cmd.batch
                     [ decideInitialRoute model location route ]
+
+        timeCmd =
+            Task.perform OnTime Time.now
     in
     ( model
-    , cmd
+    , Cmd.batch [ cmd, timeCmd ]
     )
 
 
@@ -121,6 +126,7 @@ type Msg
     | PageDashboardMsg Dashboard.Msg
     | PageLoginMsg Login.Msg
     | PageTemplateEditorMsg TemplateEditor.Msg
+    | OnTime Time.Posix
 
 
 initPage : Model -> ( Model, Cmd Msg )
@@ -267,6 +273,13 @@ update msg model =
             , Cmd.map PageTemplateEditorMsg templateEditorPageCmd
             )
 
+        OnTime time ->
+            let
+                appState =
+                    model.appState
+            in
+            ( { model | appState = { appState | currentTime = time } }, Cmd.none )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -299,7 +312,7 @@ view model =
             in
             DefaultLayout.view model.appState
                 (defaultLayoutConfig title)
-                (Html.map PageTemplateEditorMsg (TemplateEditor.view model.pages.templateEditor))
+                (Html.map PageTemplateEditorMsg (TemplateEditor.view model.appState model.pages.templateEditor))
 
         Routes.Login ->
             PublicLayout.view (Just "Login")

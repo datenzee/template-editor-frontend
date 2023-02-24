@@ -7,6 +7,7 @@ import TemplateEditor.Api.Api exposing (ServerInfo)
 import TemplateEditor.Data.Flags as Flags
 import TemplateEditor.Data.Session as Session exposing (Session)
 import TemplateEditor.Routes as Routes
+import Time
 
 
 type alias AppState =
@@ -17,6 +18,7 @@ type alias AppState =
     , session : Session
     , invalidSession : Bool
     , seed : Seed
+    , currentTime : Time.Posix
     }
 
 
@@ -44,6 +46,7 @@ init flagsValue route navigationKey =
     , session = Maybe.withDefault Session.init flags.session
     , invalidSession = invalidSession
     , seed = Random.initialSeed flags.seed
+    , currentTime = Time.millisToPosix 0
     }
 
 
