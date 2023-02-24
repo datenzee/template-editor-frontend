@@ -13,4 +13,6 @@ COPY src/docker/start.sh /start.sh
 COPY src/scss /src/scss
 COPY dist /usr/share/nginx/html
 
+EXPOSE 8080
+
 CMD ["/start.sh"]
