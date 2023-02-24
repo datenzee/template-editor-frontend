@@ -71,13 +71,3 @@ foafPrefix =
 foaf : String -> String
 foaf =
     Rdf.usePrefix foafPrefix
-
-
-basePrefix : Rdf.Prefix
-basePrefix =
-    Rdf.createPrefix "" "http://example.com#"
-
-
-base : String -> String
-base =
-    Rdf.usePrefix basePrefix

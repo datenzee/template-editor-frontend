@@ -5,7 +5,7 @@ import Json.Decode.Pipeline as D
 import Json.Encode as E
 import Random exposing (Seed)
 import Rdf
-import TemplateEditor.Data.ViewOntology.Prefixes exposing (base, dct, foaf, owl, rdf, rdfs, vo)
+import TemplateEditor.Data.ViewOntology.Prefixes exposing (dct, foaf, owl, rdf, rdfs, vo)
 import Time exposing (Month(..))
 import Uuid exposing (Uuid)
 
@@ -45,11 +45,17 @@ encodeDataComponent data =
 
 
 type alias ToRdfConfig =
-    { license : String
+    { basePrefix : String
+    , license : String
     , time : Time.Posix
     , userName : String
     , userEmail : String
     }
+
+
+base : ToRdfConfig -> String -> String
+base cfg =
+    Rdf.usePrefix (Rdf.createPrefix "" cfg.basePrefix)
 
 
 dataComponentToRdf : ToRdfConfig -> DataComponent -> String
@@ -59,13 +65,13 @@ dataComponentToRdf cfg dataComponent =
             "# " ++ dataComponent.name ++ " " ++ String.join "" (List.repeat 50 "-") ++ "\n"
 
         componentRdf =
-            Rdf.createNode (base dataComponent.name)
+            Rdf.createNode (base cfg dataComponent.name)
                 |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
                 |> Rdf.addPredicate (rdf "type") (vo "DataComponent")
                 |> Rdf.addPredicate (rdf "type") (rdfs "Resource")
-                |> Rdf.addPredicate (foaf "maker") (base agentName)
+                |> Rdf.addPredicate (foaf "maker") (base cfg agentName)
                 |> Rdf.addPredicateLiteral (vo "dataComponentName") dataComponent.name
-                |> Rdf.addPredicate (vo "dataComponentContent") (rdfIdentifier dataComponent.content)
+                |> Rdf.addPredicate (vo "dataComponentContent") (rdfIdentifier cfg dataComponent.content)
                 |> Rdf.addPredicateIRI (dct "license") cfg.license
                 |> Rdf.addPredicateLiteral (dct "created") (created cfg.time)
                 |> Rdf.nodeToString
@@ -74,13 +80,13 @@ dataComponentToRdf cfg dataComponent =
             dataComponent.name ++ "_Maker"
 
         agentRdf =
-            Rdf.createNode (base agentName)
+            Rdf.createNode (base cfg agentName)
                 |> Rdf.addPredicateLiteral (foaf "mbox") cfg.userEmail
                 |> Rdf.addPredicateLiteral (foaf "name") cfg.userName
                 |> Rdf.nodeToString
 
         contentRdf =
-            treeToRdf 0 dataComponent.content
+            treeToRdf cfg 0 dataComponent.content
     in
     comment ++ componentRdf ++ agentRdf ++ contentRdf
 
@@ -150,11 +156,11 @@ type alias Tree =
     }
 
 
-rdfIdentifier : Tree -> String
-rdfIdentifier tree =
+rdfIdentifier : ToRdfConfig -> Tree -> String
+rdfIdentifier cfg tree =
     let
         toIdentifier componentName =
-            base (componentName ++ "_" ++ String.replace "-" "" (Uuid.toString tree.uuid))
+            base cfg (componentName ++ "_" ++ String.replace "-" "" (Uuid.toString tree.uuid))
     in
     case tree.content of
         TreeContentLeaf leaf ->
@@ -260,11 +266,11 @@ encodeTree data =
         ]
 
 
-treeToRdf : Int -> Tree -> String
-treeToRdf order tree =
+treeToRdf : ToRdfConfig -> Int -> Tree -> String
+treeToRdf cfg order tree =
     let
         treeNode =
-            Rdf.createNode (rdfIdentifier tree)
+            Rdf.createNode (rdfIdentifier cfg tree)
 
         ( withData, childrenRdf ) =
             case tree.content of
@@ -315,7 +321,7 @@ treeToRdf order tree =
                                 LeafContentSourceText text ->
                                     let
                                         textContentIdentifier =
-                                            base ("TextContent_" ++ String.replace "-" "" (Uuid.toString tree.uuid))
+                                            base cfg ("TextContent_" ++ String.replace "-" "" (Uuid.toString tree.uuid))
 
                                         textContent =
                                             Rdf.createNode textContentIdentifier
@@ -337,7 +343,7 @@ treeToRdf order tree =
                                 |> Rdf.addPredicate (rdf "type") (owl "NamedIndividual")
 
                         addChild predicate child rdfNode =
-                            Rdf.addPredicate predicate (rdfIdentifier child) rdfNode
+                            Rdf.addPredicate predicate (rdfIdentifier cfg child) rdfNode
 
                         addChildren predicate children rdfNode =
                             List.foldl (addChild predicate) rdfNode children
@@ -347,7 +353,7 @@ treeToRdf order tree =
 
                         createChildrenRdf children =
                             String.join "" <|
-                                List.indexedMap treeToRdf children
+                                List.indexedMap (treeToRdf cfg) children
                     in
                     case node.content of
                         NodeContentStrong ->

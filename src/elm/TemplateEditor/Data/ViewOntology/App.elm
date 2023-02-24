@@ -54,13 +54,7 @@ toRdf app cfg =
 
         dataComponents =
             List.map
-                (dataComponentToRdf
-                    { license = cfg.license
-                    , time = cfg.time
-                    , userName = cfg.userName
-                    , userEmail = cfg.userEmail
-                    }
-                )
+                (dataComponentToRdf cfg)
                 app.components
                 |> String.join "\n"
     in
