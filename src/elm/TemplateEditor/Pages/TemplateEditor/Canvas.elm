@@ -3,7 +3,7 @@ module TemplateEditor.Pages.TemplateEditor.Canvas exposing (..)
 import Bootstrap.Button as Button
 import Bootstrap.Dropdown as Dropdown
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, div, h5, hr, input, label, li, option, select, span, strong, text, ul)
+import Html exposing (Html, a, button, div, h5, hr, input, label, li, option, select, small, span, strong, text, ul)
 import Html.Attributes exposing (checked, class, classList, selected, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput)
 import Html.Extra exposing (emptyNode)
@@ -796,7 +796,10 @@ viewCard model cfg =
     div [ class "card" ]
         [ div [ class "card-header d-flex justify-content-between" ]
             [ div [] (collapseButton :: cfg.header)
-            , controlButtons
+            , div [ class "d-flex align-items-center" ]
+                [ small [ class "text-muted" ] [ text (String.replace "-" "" (Uuid.toString cfg.uuid)) ]
+                , controlButtons
+                ]
             ]
         , body
         ]
