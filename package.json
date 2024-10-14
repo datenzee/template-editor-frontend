@@ -8,7 +8,7 @@
     "analyse": "elm-analyse",
     "build": "./scripts/build.sh",
     "clean": "rm -rf dist",
-    "docker:build": "docker build -t docker.ds-wizard.org/template-editor-frontend -f src/docker/Dockerfile .",
+    "docker:build": "docker build -t docker.ds-wizard.org/template-editor-frontend --platform amd64 -f src/docker/Dockerfile .",
     "docker:push": "docker push docker.ds-wizard.org/template-editor-frontend",
     "start": "webpack serve",
     "test": "npm run test:elm && npm run test:registry:icon-set && npm run test:registry:locale && npm run test:shared:icon-set && npm run test:shared:locale && npm run test:wizard:icon-set && npm run test:wizard:locale",
